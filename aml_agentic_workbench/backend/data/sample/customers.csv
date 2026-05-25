@@ -1,0 +1,21 @@
+customer_id,customer_name,customer_country,segment,onboarded_date,baseline_monthly_txn_count,baseline_monthly_amount,customer_risk_rating
+CUST001,Synthetic Customer 001,CA,retail,2020-01-15,8,2400,low
+CUST002,Synthetic Customer 002,CA,small_business,2019-04-03,18,18500,medium
+CUST003,Synthetic Customer 003,CA,retail,2021-06-22,6,1300,low
+CUST004,Synthetic Customer 004,CA,small_business,2018-11-30,22,32000,medium
+CUST005,Synthetic Customer 005,CA,retail,2022-02-17,5,900,low
+CUST006,Synthetic Customer 006,CA,retail,2020-09-08,7,2100,low
+CUST007,Synthetic Customer 007,CA,small_business,2019-08-19,20,28000,medium
+CUST008,Synthetic Customer 008,CA,retail,2023-01-12,4,700,low
+CUST009,Synthetic Customer 009,CA,small_business,2017-05-06,16,14500,medium
+CUST010,Synthetic Customer 010,CA,retail,2020-12-11,9,2600,low
+CUST011,Synthetic Customer 011,CA,retail,2021-07-01,6,1400,low
+CUST012,Synthetic Customer 012,CA,small_business,2018-03-27,24,36000,medium
+CUST013,Synthetic Customer 013,CA,retail,2022-10-14,5,1100,low
+CUST014,Synthetic Customer 014,CA,small_business,2019-12-02,19,21000,medium
+CUST015,Synthetic Customer 015,CA,retail,2020-05-25,8,2300,low
+CUST016,Synthetic Customer 016,CA,small_business,2017-09-09,17,19000,medium
+CUST017,Synthetic Customer 017,CA,retail,2021-03-18,7,1800,low
+CUST018,Synthetic Customer 018,CA,small_business,2018-07-21,21,30000,medium
+CUST019,Synthetic Customer 019,CA,retail,2022-04-29,6,1500,low
+CUST020,Synthetic Customer 020,CA,small_business,2016-10-10,23,42000,medium
