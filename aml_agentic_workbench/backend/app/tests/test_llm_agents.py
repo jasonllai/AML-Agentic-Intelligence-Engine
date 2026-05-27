@@ -18,7 +18,43 @@ from app.llm.schemas import (
     TransactionBehaviourOutput,
     TypologyMappingOutput,
 )
+from app.schemas.knowledge import ScoredKnowledgeDocument
 from app.schemas.roles import SupportedRole
+
+
+class FakeModelService:
+    """Model service test double."""
+
+    def score_customer(self, customer_id: str) -> dict[str, object]:
+        """Return deterministic model output for agent tests."""
+        return {
+            "customer_id": customer_id,
+            "model_version": "test-isolation-forest",
+            "risk_score": 0.91,
+            "anomaly_score": 0.91,
+            "alert_recommendation": "alert",
+            "top_features": ["txn_count_total", "wire_amount_sum"],
+            "explanation_metadata": {"backend": "isolation_forest"},
+        }
+
+
+class FakeKnowledgeRetriever:
+    """Knowledge retriever test double with citation-ready official-source output."""
+
+    def search(self, query: str, limit: int = 3) -> list[ScoredKnowledgeDocument]:
+        """Return deterministic typology grounding without requiring pgvector."""
+        return [
+            ScoredKnowledgeDocument(
+                doc_id="fintrac:test",
+                title="FINTRAC ML/TF indicators",
+                source="FINTRAC - guidance",
+                section="Indicators",
+                text="Indicators are red flags and are not conclusive without customer context.",
+                url="https://fintrac-canafe.canada.ca/guidance-directives/transaction-operation/indicators-indicateurs/fin_mltf-eng",
+                metadata={"organization": "FINTRAC"},
+                score=0.9,
+            )
+        ][:limit]
 
 
 def test_transaction_behaviour_agent_returns_valid_schema() -> None:
@@ -57,9 +93,41 @@ def test_model_agent_includes_uncertainty_language() -> None:
     assert "not proof" in combined
 
 
+def test_model_agent_uses_model_service_not_precomputed_outputs() -> None:
+    """Model explanation should rely on the scoring service, not assumed-done CSV outputs."""
+    nodes = make_agent_nodes(llm_client=MockLLMClient(), model_service=FakeModelService())
+    state = initial_state(
+        role=SupportedRole.MODEL_VALIDATOR,
+        task_type="model_validation_review",
+        query="Explain model score uncertainty.",
+        customer_id="CUST003",
+    )
+
+    final_state = nodes[MODEL_EXPLANATION_AGENT](state)
+
+    assert final_state["model_outputs"]["model_version"] == "test-isolation-forest"
+    assert final_state["model_outputs"]["top_features"] == ["txn_count_total", "wire_amount_sum"]
+
+
+def test_model_agent_handles_missing_customer_without_aborting_route() -> None:
+    """Missing customer IDs should produce an explicit limitation instead of aborting evaluation routes."""
+    nodes = make_agent_nodes(llm_client=MockLLMClient(), model_service=None)
+    state = initial_state(
+        role=SupportedRole.DATA_SCIENTIST,
+        task_type="model_risk_explanation",
+        query="Explain model score for a missing customer.",
+        customer_id="MISSING-CUSTOMER",
+    )
+
+    final_state = nodes[MODEL_EXPLANATION_AGENT](state)
+
+    assert MODEL_EXPLANATION_AGENT in final_state["executed_agents"]
+    assert final_state["model_outputs"]["model_version"] == "untrained"
+
+
 def test_typology_agent_requires_citations_and_careful_language() -> None:
     """Typology mapping should include citations and non-conclusive language."""
-    nodes = make_agent_nodes(llm_client=MockLLMClient())
+    nodes = make_agent_nodes(llm_client=MockLLMClient(), knowledge_retriever=FakeKnowledgeRetriever())
     state = initial_state(
         role=SupportedRole.INVESTIGATOR,
         task_type="investigator_summary",
@@ -114,5 +182,6 @@ def test_evidence_assembly_adapts_to_partial_agent_route() -> None:
 
     EvidenceAssemblyOutput.model_validate(structured)
     assert "Customer Behaviour Overview" in report
+    assert "Requested focus: Summarize behaviour only." in report
     assert "Model Risk Explanation" not in report
     assert "Feature Quality Review" not in report

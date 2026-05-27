@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
+from app.ml.model_service import ModelService, get_model_service
 from app.schemas.roles import SupportedRole
 from app.services.data_service import DataService, get_data_service
 from app.services.knowledge_retriever import KnowledgeRetriever, get_knowledge_retriever
@@ -146,7 +147,7 @@ class GetCustomerFeatureSummaryTool(DataServiceTool):
 
 
 class GetModelOutputsTool(DataServiceTool):
-    """Return synthetic model outputs."""
+    """Return current AML model scoring outputs."""
 
     name = "get_model_outputs"
     description = "Retrieve AML model output scores and leading features."
@@ -154,11 +155,26 @@ class GetModelOutputsTool(DataServiceTool):
     input_schema = CustomerIdInput
     output_schema = ModelOutputsOutput
 
+    def __init__(self, data_service: DataService | None = None, model_service: ModelService | None = None) -> None:
+        super().__init__(data_service)
+        self.model_service = model_service or get_model_service()
+
     def execute(self, tool_input: BaseModel, context: ToolContext) -> BaseModel:
         request = CustomerIdInput.model_validate(tool_input)
+        if self.model_service is not None:
+            outputs = self.model_service.score_customer(request.customer_id)
+        else:
+            outputs = {
+                "customer_id": request.customer_id,
+                "model_version": "untrained",
+                "risk_score": None,
+                "anomaly_score": None,
+                "alert_recommendation": "model_artifact_required",
+                "top_features": [],
+            }
         return ModelOutputsOutput(
             customer_id=request.customer_id,
-            model_outputs=self.data_service.get_model_outputs(request.customer_id),
+            model_outputs=outputs,
         )
 
 

@@ -4,8 +4,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import analysis, health, reports, roles
+from app.api.routes import analysis, evaluations, health, reports, roles
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 
@@ -31,13 +32,21 @@ def create_app() -> FastAPI:
         description="Role-aware AML multi-agent intelligence API foundation.",
         lifespan=lifespan,
     )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_origin_regex=settings.cors_allow_origin_regex,
+        allow_credentials=settings.cors_allow_credentials,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+    )
 
     app.include_router(health.router, prefix=settings.api_prefix)
     app.include_router(roles.router, prefix=settings.api_prefix)
     app.include_router(analysis.router, prefix=settings.api_prefix)
     app.include_router(reports.router, prefix=settings.api_prefix)
+    app.include_router(evaluations.router, prefix=settings.api_prefix)
     return app
 
 
 app = create_app()
-

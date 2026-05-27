@@ -8,6 +8,7 @@ from app.agents.graph import execute_graph
 from app.agents.router import RoleAwareRouter, RouteValidationError
 from app.agents.state import initial_state
 from app.guardrails.policy_engine import PolicyEngine
+from app.rag.pgvector_store import RagStoreUnavailable
 from app.schemas.analysis import AnalysisRequest, AnalysisResponse
 from app.services.run_logger import AgentRunLogger
 from app.services.run_store import run_store
@@ -45,7 +46,14 @@ async def create_analysis(request: AnalysisRequest) -> AnalysisResponse:
         route=route.agents,
         route_explanation=router_service.explain_route(route),
     )
-    final_state = execute_graph(route, state)
+    try:
+        final_state = execute_graph(route, state)
+    except RagStoreUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        if "pgvector RAG store is not initialized or unavailable" in str(exc):
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise
     final_report = final_state.get("final_report") or ""
     citations = _collect_citations(final_state)
     policy_context = {

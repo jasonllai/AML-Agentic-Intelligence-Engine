@@ -1,6 +1,8 @@
 import type {
   AnalysisRequest,
   AnalysisResponse,
+  EvaluationRunSummary,
+  GoldenDatasetResponse,
   HealthResponse,
   ReportDetailResponse,
   ReportListResponse,
@@ -35,5 +37,17 @@ export const api = {
       body: JSON.stringify(payload)
     }),
   reports: () => request<ReportListResponse>("/reports"),
-  report: (runId: string) => request<ReportDetailResponse>(`/reports/${runId}`)
+  report: (runId: string) => request<ReportDetailResponse>(`/reports/${runId}`),
+  generateGoldenDataset: (caseLimit = 100) =>
+    request<GoldenDatasetResponse>("/evaluations/generate-golden-dataset", {
+      method: "POST",
+      body: JSON.stringify({ case_limit: caseLimit })
+    }),
+  runEvaluation: (caseLimit = 20) =>
+    request<EvaluationRunSummary>("/evaluations/run", {
+      method: "POST",
+      body: JSON.stringify({ case_limit: caseLimit })
+    }),
+  evaluations: () => request<EvaluationRunSummary[]>("/evaluations"),
+  evaluation: (runId: string) => request<EvaluationRunSummary>(`/evaluations/${runId}`)
 };

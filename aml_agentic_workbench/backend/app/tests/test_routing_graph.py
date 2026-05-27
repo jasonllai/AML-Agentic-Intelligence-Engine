@@ -3,6 +3,7 @@
 import pytest
 
 from app.agents.graph import DynamicGraphBuilder
+from app.agents.nodes import make_agent_nodes
 from app.agents.router import (
     GUARDRAIL_AGENT,
     TRANSACTION_BEHAVIOUR_AGENT,
@@ -10,7 +11,27 @@ from app.agents.router import (
     RouteValidationError,
 )
 from app.agents.state import initial_state
+from app.schemas.knowledge import ScoredKnowledgeDocument
 from app.schemas.roles import SupportedRole
+
+
+class FakeKnowledgeRetriever:
+    """Knowledge retriever test double for graph tests."""
+
+    def search(self, query: str, limit: int = 3) -> list[ScoredKnowledgeDocument]:
+        """Return citation-ready typology context without requiring pgvector."""
+        return [
+            ScoredKnowledgeDocument(
+                doc_id="fintrac:test",
+                title="FINTRAC ML/TF indicators",
+                source="FINTRAC - guidance",
+                section="Indicators",
+                text="FINTRAC indicators are red flags that require customer-context assessment.",
+                url="https://fintrac-canafe.canada.ca/guidance-directives/transaction-operation/indicators-indicateurs/fin_mltf-eng",
+                metadata={"organization": "FINTRAC"},
+                score=0.9,
+            )
+        ][:limit]
 
 
 def test_data_scientist_model_risk_route_is_correct() -> None:
@@ -74,7 +95,8 @@ def test_graph_produces_final_report_for_dynamic_route() -> None:
         route_explanation=route.explanation,
     )
 
-    final_state = DynamicGraphBuilder().run(route, state)
+    nodes = make_agent_nodes(knowledge_retriever=FakeKnowledgeRetriever())
+    final_state = DynamicGraphBuilder(node_registry=nodes).run(route, state)
 
     assert final_state["executed_agents"] == route.agents
     assert final_state["final_report"] is not None

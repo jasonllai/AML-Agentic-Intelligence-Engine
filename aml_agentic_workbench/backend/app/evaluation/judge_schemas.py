@@ -23,6 +23,7 @@ class JudgeCriterion(StrEnum):
     DATA_SCIENCE = "data_science"
     COMPLIANCE = "compliance"
     USEFULNESS = "usefulness"
+    ANSWER_RELEVANCE = "answer_relevance"
 
 
 class JudgeDecision(BaseModel):
@@ -44,4 +45,3 @@ class JudgePanelResult(BaseModel):
     overall_score: float = Field(..., ge=0.0, le=1.0)
     pass_fail: str = Field(pattern="^(pass|fail)$")
     failure_reason: str | None = None
-

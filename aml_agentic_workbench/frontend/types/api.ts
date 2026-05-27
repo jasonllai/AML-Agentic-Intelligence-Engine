@@ -105,3 +105,49 @@ export interface ReportDetailResponse {
   audit_trace: AuditTraceItem[];
   created_at: string;
 }
+
+export interface GoldenCase {
+  case_id: string;
+  role: SupportedRole;
+  task_type: TaskType;
+  customer_id?: string | null;
+  query: string;
+  expected_agents: AgentName[];
+  expected_evidence: string[];
+  expected_guardrail_outcome: "allowed" | "blocked";
+  requires_citations: boolean;
+  tags: string[];
+}
+
+export interface GoldenDatasetResponse {
+  case_count: number;
+  cases: GoldenCase[];
+}
+
+export interface EvaluationCaseResult {
+  case_id: string;
+  role: SupportedRole;
+  task_type: TaskType;
+  query: string;
+  passed: boolean;
+  metrics: Record<string, number>;
+  expected_agents: AgentName[];
+  actual_agents: AgentName[];
+  expected_guardrail_outcome: "allowed" | "blocked";
+  actual_guardrail_outcome: "allowed" | "blocked";
+  judge_rationale: Record<string, string>;
+  retrieved_citations: Record<string, unknown>[];
+  failure_reasons: string[];
+}
+
+export interface EvaluationRunSummary {
+  run_id: string;
+  status: string;
+  case_count: number;
+  passed_count: number;
+  failed_count: number;
+  overall_score: number;
+  metrics: Record<string, number>;
+  cases: EvaluationCaseResult[];
+  created_at: string;
+}

@@ -16,5 +16,7 @@ node_modules/
 *.egg-info/
 dist/
 build/
+artifacts/
+real_data/
 
 .DS_Store

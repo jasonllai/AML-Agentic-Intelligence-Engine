@@ -5,6 +5,9 @@ from app.guardrails.schemas import GuardrailDecision, GuardrailStatus
 PROMPT_INJECTION_PATTERNS = (
     "ignore previous instructions",
     "ignore all previous instructions",
+    "ignore prior instructions",
+    "fabricate suspicious activity evidence",
+    "fabricate evidence",
     "developer message",
     "system prompt",
     "reveal your prompt",
@@ -45,4 +48,3 @@ class InputGuardrails:
                 else None
             ),
         )
-

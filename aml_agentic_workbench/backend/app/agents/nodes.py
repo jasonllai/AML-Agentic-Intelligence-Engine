@@ -23,6 +23,7 @@ from app.llm.schemas import (
     TransactionBehaviourOutput,
     TypologyMappingOutput,
 )
+from app.ml.model_service import ModelArtifactError, ModelService, get_model_service
 from app.services.data_service import DataService, get_data_service
 from app.services.knowledge_retriever import KnowledgeRetriever, get_knowledge_retriever
 
@@ -33,16 +34,18 @@ def make_agent_nodes(
     data_service: DataService | None = None,
     knowledge_retriever: KnowledgeRetriever | None = None,
     llm_client: LLMClient | None = None,
+    model_service: ModelService | None = None,
 ) -> dict[str, AgentNode]:
     """Create LLM-backed node callables keyed by supported agent name."""
     service = data_service or get_data_service()
     retriever = knowledge_retriever or get_knowledge_retriever()
     client = llm_client or get_llm_client()
+    scorer = model_service or get_model_service()
     return {
         TRANSACTION_BEHAVIOUR_AGENT: transaction_behaviour_agent(service, client),
-        MODEL_EXPLANATION_AGENT: model_explanation_agent(service, client),
+        MODEL_EXPLANATION_AGENT: model_explanation_agent(service, client, scorer),
         TYPOLOGY_MAPPING_AGENT: typology_mapping_agent(retriever, client),
-        FEATURE_CRITIC_AGENT: feature_critic_agent(service, client),
+        FEATURE_CRITIC_AGENT: feature_critic_agent(service, client, scorer),
         EVIDENCE_ASSEMBLY_AGENT: evidence_assembly_agent(client),
         JUDGE_PANEL_AGENT: judge_panel_agent(client),
         GUARDRAIL_AGENT: guardrail_agent(client),
@@ -54,9 +57,9 @@ def transaction_behaviour_agent(data_service: DataService, llm_client: LLMClient
 
     def node(state: AMLAgentState) -> AMLAgentState:
         customer_id = state.get("customer_id")
-        transactions = data_service.get_transactions(customer_id) if customer_id else []
-        feature_summary = data_service.get_feature_summary(customer_id) if customer_id else {}
-        network_summary = data_service.get_network_summary(customer_id) if customer_id else {}
+        transactions = _safe_transactions(data_service, customer_id)
+        feature_summary = _safe_feature_summary(data_service, customer_id)
+        network_summary = _safe_network_summary(data_service, customer_id)
         inputs = {
             "customer_feature_summary": feature_summary,
             "customer_transactions": transactions[:50],
@@ -79,13 +82,17 @@ def transaction_behaviour_agent(data_service: DataService, llm_client: LLMClient
     return node
 
 
-def model_explanation_agent(data_service: DataService, llm_client: LLMClient) -> AgentNode:
+def model_explanation_agent(
+    data_service: DataService,
+    llm_client: LLMClient,
+    model_service: ModelService | None = None,
+) -> AgentNode:
     """Build a node that explains model outputs without treating scores as proof."""
 
     def node(state: AMLAgentState) -> AMLAgentState:
         customer_id = state.get("customer_id")
-        outputs = data_service.get_model_outputs(customer_id) if customer_id else {}
-        feature_summary = data_service.get_feature_summary(customer_id) if customer_id else {}
+        outputs = _score_or_untrained(model_service, customer_id)
+        feature_summary = _safe_feature_summary(data_service, customer_id)
         inputs = {"model_outputs": outputs, "feature_summary": feature_summary}
         prompt = render_prompt(MODEL_EXPLANATION_AGENT, state["role"], state["query"], inputs)
         output = llm_client.generate_structured(prompt, ModelExplanationOutput)
@@ -133,13 +140,17 @@ def typology_mapping_agent(knowledge_retriever: KnowledgeRetriever, llm_client: 
     return node
 
 
-def feature_critic_agent(data_service: DataService, llm_client: LLMClient) -> AgentNode:
+def feature_critic_agent(
+    data_service: DataService,
+    llm_client: LLMClient,
+    model_service: ModelService | None = None,
+) -> AgentNode:
     """Build a node that critiques AML feature quality and recommends PySpark features."""
 
     def node(state: AMLAgentState) -> AMLAgentState:
         customer_id = state.get("customer_id")
-        features = data_service.get_feature_summary(customer_id) if customer_id else {}
-        model_outputs = data_service.get_model_outputs(customer_id) if customer_id else {}
+        features = _safe_feature_summary(data_service, customer_id)
+        model_outputs = _score_or_untrained(model_service, customer_id)
         inputs = {
             "feature_summary": features,
             "behaviour_analysis": state.get("agent_outputs", {}).get(TRANSACTION_BEHAVIOUR_AGENT, {}),
@@ -309,6 +320,7 @@ def _compose_adaptive_report(state: AMLAgentState, output: EvidenceAssemblyOutpu
         "# AML Intelligence Report",
         "## Executive Summary",
         f"Role `{state['role'].value}` requested `{state['task_type']}`. {output.report_markdown.splitlines()[0]}",
+        f"Requested focus: {state['query']}",
     ]
     if TRANSACTION_BEHAVIOUR_AGENT in agent_outputs:
         sections.extend(
@@ -371,3 +383,56 @@ def _evaluation_context(state: AMLAgentState) -> dict[str, Any]:
         "citations": citations,
         "agent_outputs": state.get("agent_outputs", {}),
     }
+
+
+def _untrained_model_output(customer_id: str | None) -> dict[str, Any]:
+    """Return an explicit no-artifact model state instead of assuming precomputed scores."""
+    return {
+        "customer_id": customer_id,
+        "model_version": "untrained",
+        "risk_score": None,
+        "anomaly_score": None,
+        "reconstruction_error": None,
+        "alert_recommendation": "model_artifact_required",
+        "top_features": [],
+        "explanation_metadata": {
+            "backend": "none",
+            "status": "No trained model artifact was loaded. Run python -m app.ml.train_model first.",
+        },
+    }
+
+
+def _safe_feature_summary(data_service: DataService, customer_id: str | None) -> dict[str, Any]:
+    if not customer_id:
+        return {}
+    try:
+        return data_service.get_feature_summary(customer_id)
+    except ValueError as exc:
+        return {"customer_id": customer_id, "status": "feature_summary_unavailable", "reason": str(exc)}
+
+
+def _safe_transactions(data_service: DataService, customer_id: str | None) -> list[dict[str, Any]]:
+    if not customer_id:
+        return []
+    try:
+        return data_service.get_transactions(customer_id)
+    except ValueError:
+        return []
+
+
+def _safe_network_summary(data_service: DataService, customer_id: str | None) -> dict[str, Any]:
+    if not customer_id:
+        return {}
+    try:
+        return data_service.get_network_summary(customer_id)
+    except ValueError as exc:
+        return {"customer_id": customer_id, "status": "network_summary_unavailable", "reason": str(exc)}
+
+
+def _score_or_untrained(model_service: ModelService | None, customer_id: str | None) -> dict[str, Any]:
+    if customer_id and model_service:
+        try:
+            return model_service.score_customer(customer_id)
+        except ModelArtifactError:
+            return _untrained_model_output(customer_id)
+    return _untrained_model_output(customer_id)

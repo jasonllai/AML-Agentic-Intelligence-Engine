@@ -1,29 +1,57 @@
 import type { AgentName, SupportedRole, TaskType } from "@/types/api";
 
-export const roles: Record<SupportedRole, { label: string; focus: string; tasks: string[]; reportStyle: string }> = {
+export const roles: Record<
+  SupportedRole,
+  {
+    label: string;
+    focus: string;
+    tasks: string[];
+    reportStyle: string;
+    defaultTask: TaskType;
+    defaultCustomerId: string;
+    defaultQuery: string;
+    actions: TaskType[];
+  }
+> = {
   data_scientist: {
     label: "Data Scientist",
     focus: "Feature behaviour, model drivers, anomaly patterns, and analytical next steps.",
     tasks: ["Model risk explanation", "Feature quality review", "Full intelligence report"],
-    reportStyle: "Technical, feature-rich, and explicit about model limitations."
+    reportStyle: "Technical, feature-rich, and explicit about model limitations.",
+    defaultTask: "model_risk_explanation",
+    defaultCustomerId: "SYNID0100000485",
+    defaultQuery: "Explain this customer's anomaly score, strongest model drivers, and feature limitations.",
+    actions: ["model_risk_explanation", "feature_quality_review", "full_intelligence_report"]
   },
   investigator: {
     label: "Investigator",
     focus: "Customer behaviour, evidence assembly, and careful case-oriented summaries.",
     tasks: ["Investigator summary", "Customer behaviour analysis", "Typology mapping"],
-    reportStyle: "Plain AML language with evidence tables and review-ready findings."
+    reportStyle: "Plain AML language with evidence tables and review-ready findings.",
+    defaultTask: "investigator_summary",
+    defaultCustomerId: "CUST003",
+    defaultQuery: "Summarize unusual customer behaviour and map it to typology indicators with careful AML wording.",
+    actions: ["investigator_summary", "customer_behaviour_analysis", "typology_mapping"]
   },
   model_validator: {
     label: "Model Validator",
     focus: "Auditability, uncertainty, feature governance, and validation concerns.",
     tasks: ["Model validation review", "Model risk explanation", "Feature quality review"],
-    reportStyle: "Governance-forward with caveats, limitations, and validation tests."
+    reportStyle: "Governance-forward with caveats, limitations, and validation tests.",
+    defaultTask: "model_validation_review",
+    defaultCustomerId: "SYNID0100000485",
+    defaultQuery: "Review whether the model explanation is supportable, uncertain where appropriate, and validation-ready.",
+    actions: ["model_validation_review", "model_risk_explanation", "feature_quality_review"]
   },
   compliance_strategy: {
     label: "Compliance Strategy",
     focus: "Typology coverage, policy alignment, and careful regulatory language.",
     tasks: ["Compliance typology review", "Typology mapping", "Full intelligence report"],
-    reportStyle: "Concise policy alignment with citations and non-conclusive language."
+    reportStyle: "Concise policy alignment with citations and non-conclusive language.",
+    defaultTask: "compliance_typology_review",
+    defaultCustomerId: "",
+    defaultQuery: "Review official typology indicators and summarize compliance-safe language for this scenario.",
+    actions: ["compliance_typology_review", "typology_mapping", "full_intelligence_report"]
   }
 };
 

@@ -11,7 +11,8 @@ export function Shell({ children }: { children: ReactNode }) {
           </Link>
           <nav className="flex items-center gap-4 text-sm text-slate-600">
             <Link href="/roles" className="hover:text-ink">Roles</Link>
-            <Link href="/analysis" className="hover:text-ink">Analysis</Link>
+            <Link href="/" className="hover:text-ink">Workspaces</Link>
+            <Link href="/evaluations" className="hover:text-ink">Evaluations</Link>
             <Link href="/history" className="hover:text-ink">Run History</Link>
             <span className="rounded-full border border-slate-200 px-3 py-1 text-xs">SSO placeholder</span>
           </nav>

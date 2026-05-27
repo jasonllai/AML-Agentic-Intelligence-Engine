@@ -1,0 +1,57 @@
+sources:
+  - id: fintrac_financial_entity_indicators
+    title: FINTRAC Money laundering and terrorist financing indicators - Financial entities
+    organization: FINTRAC
+    url: https://fintrac-canafe.canada.ca/guidance-directives/transaction-operation/indicators-indicateurs/fin_mltf-eng
+    document_type: regulatory_guidance
+    jurisdiction: CA
+    priority: 1
+    topics: [ml_tf_indicators, financial_entities, red_flags, customer_context]
+  - id: fintrac_str_guidance
+    title: FINTRAC Reporting suspicious transactions guidance
+    organization: FINTRAC
+    url: https://fintrac-canafe.canada.ca/guidance-directives/transaction-operation/str-dod/str-dod-eng
+    document_type: regulatory_guidance
+    jurisdiction: CA
+    priority: 1
+    topics: [suspicious_transaction_reports, narrative_quality, reasonable_grounds_to_suspect]
+  - id: fintrac_strategic_intelligence
+    title: FINTRAC Strategic intelligence and operational alerts
+    organization: FINTRAC
+    url: https://fintrac-canafe.canada.ca/intel/sintel-eng?type=alert
+    document_type: strategic_intelligence
+    jurisdiction: CA
+    priority: 1
+    topics: [typologies, operational_alerts, threat_intelligence]
+  - id: fatf_recommendations
+    title: FATF Recommendations
+    organization: FATF
+    url: https://www.fatf-gafi.org/content/dam/fatf-gafi/recommendations/FATF%20Recommendations%202012.pdf.coredownload.inline.pdf
+    document_type: international_standard
+    jurisdiction: international
+    priority: 2
+    topics: [aml_cft_standards, risk_based_approach, governance]
+  - id: fatf_rba_banking
+    title: FATF Risk-Based Approach Guidance for the Banking Sector
+    organization: FATF
+    url: https://www.fatf-gafi.org/content/dam/fatf-gafi/guidance/Risk-Based-Approach-Banking-Sector.pdf.coredownload.pdf
+    document_type: guidance
+    jurisdiction: international
+    priority: 2
+    topics: [banking, risk_based_approach, controls]
+  - id: fatf_tbml_indicators
+    title: FATF Trade-Based Money Laundering Risk Indicators
+    organization: FATF
+    url: https://www.fatf-gafi.org/content/dam/fatf-gafi/reports/Trade-Based-Money-Laundering-Risk-Indicators.pdf.coredownload.inline.pdf
+    document_type: typology_report
+    jurisdiction: international
+    priority: 2
+    topics: [trade_based_money_laundering, risk_indicators, non_conclusive_indicators]
+  - id: egmont_group_fiu_role
+    title: Egmont Group FIU role and case study grounding
+    organization: Egmont Group
+    url: https://egmontgroup.org/
+    document_type: fiu_reference
+    jurisdiction: international
+    priority: 3
+    topics: [financial_intelligence_units, case_studies, suspicious_transaction_analysis]

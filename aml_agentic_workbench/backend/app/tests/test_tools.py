@@ -3,6 +3,7 @@
 
 import pytest
 
+from app.schemas.knowledge import ScoredKnowledgeDocument
 from app.schemas.roles import SupportedRole
 from app.services.audit_logger import AuditEvent
 from app.tools.aml_tools import GetCustomerTransactionsTool, SaveReportTool, SearchAmlKnowledgeBaseTool
@@ -18,6 +19,25 @@ class InMemoryAuditLogger:
     def log(self, event: AuditEvent) -> None:
         """Capture audit events in memory."""
         self.events.append(event)
+
+
+class FakeKnowledgeRetriever:
+    """Knowledge retriever test double with citation-ready output."""
+
+    def search(self, query: str, limit: int = 3) -> list[ScoredKnowledgeDocument]:
+        """Return deterministic documents for tool permission tests."""
+        return [
+            ScoredKnowledgeDocument(
+                doc_id="fintrac:test",
+                title="FINTRAC ML/TF indicators",
+                source="FINTRAC - guidance",
+                section="Indicators",
+                text="Cross-border wire concentration may be a contextual risk indicator.",
+                url="https://fintrac-canafe.canada.ca/guidance-directives/transaction-operation/indicators-indicateurs/fin_mltf-eng",
+                metadata={"organization": "FINTRAC"},
+                score=0.9,
+            )
+        ][:limit]
 
 
 def test_tool_registration_lists_descriptors_for_role() -> None:
@@ -82,7 +102,7 @@ def test_unauthorized_role_cannot_call_restricted_tool() -> None:
 def test_knowledge_search_tool_is_role_scoped_to_all_roles() -> None:
     """Knowledge search should be available to every supported role."""
     registry = ToolRegistry()
-    registry.register(SearchAmlKnowledgeBaseTool())
+    registry.register(SearchAmlKnowledgeBaseTool(retriever=FakeKnowledgeRetriever()))
 
     output = registry.invoke(
         "search_aml_knowledge_base",
@@ -94,4 +114,5 @@ def test_knowledge_search_tool_is_role_scoped_to_all_roles() -> None:
     assert output.data is not None
     documents = output.data["documents"]
     assert isinstance(documents, list)
-    assert any("Cross-border" in str(document["title"]) for document in documents)
+    assert documents
+    assert all(document.get("url") for document in documents)

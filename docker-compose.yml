@@ -17,6 +17,11 @@ services:
       MOCK_LLM_MODEL: ${MOCK_LLM_MODEL:-mock-aml-llm}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0}
       LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-20}
+      REAL_DATA_DIR: ${REAL_DATA_DIR:-/workspace/real_data}
+      MODEL_ARTIFACT_DIR: ${MODEL_ARTIFACT_DIR:-/workspace/artifacts/models}
+      RAG_ARTIFACT_DIR: ${RAG_ARTIFACT_DIR:-/workspace/artifacts/rag}
+      ML_MODEL_BACKEND: ${ML_MODEL_BACKEND:-isolation_forest}
+      RAG_EMBEDDING_BACKEND: ${RAG_EMBEDDING_BACKEND:-local}
     ports:
       - "8000:8000"
     depends_on:
@@ -26,6 +31,8 @@ services:
         condition: service_started
     volumes:
       - ./aml_agentic_workbench/backend/app:/app/app
+      - ./real_data:/workspace/real_data:ro
+      - ./artifacts:/workspace/artifacts
 
   postgres:
     image: pgvector/pgvector:pg16
