@@ -138,12 +138,13 @@ class LocalIsolationForest:
     def anomaly_score(self, matrix: np.ndarray) -> pd.Series:
         if not self.trees:
             return pd.Series([0.0] * len(matrix))
-        path_lengths = []
-        for row in matrix:
-            lengths = [self._path_length(tree, row, depth=0) for tree in self.trees]
-            path_lengths.append(float(np.mean(lengths)))
+        path_lengths = np.zeros(len(matrix), dtype=float)
+        indexes = np.arange(len(matrix))
+        for tree in self.trees:
+            path_lengths += self._path_lengths(tree, matrix, indexes, depth=0)
+        path_lengths = path_lengths / len(self.trees)
         max_depth = max(1, self.max_depth)
-        return pd.Series([1.0 - min(length / max_depth, 1.0) for length in path_lengths])
+        return pd.Series(1.0 - np.minimum(path_lengths / max_depth, 1.0))
 
     def _build_tree(self, matrix: np.ndarray, indexes: list[int], *, depth: int, rng: random.Random) -> dict[str, Any]:
         if depth >= self.max_depth or len(indexes) <= 1:
@@ -175,6 +176,17 @@ class LocalIsolationForest:
             return depth
         branch = "left" if row[int(tree["feature"])] < float(tree["split"]) else "right"
         return self._path_length(tree[branch], row, depth=depth + 1)
+
+    def _path_lengths(self, tree: dict[str, Any], matrix: np.ndarray, indexes: np.ndarray, *, depth: int) -> np.ndarray:
+        if tree.get("leaf") or depth >= self.max_depth or len(indexes) == 0:
+            return np.full(len(indexes), depth, dtype=float)
+        feature = int(tree["feature"])
+        split = float(tree["split"])
+        left_mask = matrix[indexes, feature] < split
+        result = np.empty(len(indexes), dtype=float)
+        result[left_mask] = self._path_lengths(tree["left"], matrix, indexes[left_mask], depth=depth + 1)
+        result[~left_mask] = self._path_lengths(tree["right"], matrix, indexes[~left_mask], depth=depth + 1)
+        return result
 
     def to_dict(self) -> dict[str, object]:
         return {

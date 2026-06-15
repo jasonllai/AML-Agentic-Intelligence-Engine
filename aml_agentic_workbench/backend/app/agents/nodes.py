@@ -3,6 +3,8 @@
 from typing import Any
 
 from app.agents.router import (
+    CANDIDATE_RANKING_AGENT,
+    CASE_INVESTIGATION_AGENT,
     EVIDENCE_ASSEMBLY_AGENT,
     FEATURE_CRITIC_AGENT,
     GUARDRAIL_AGENT,
@@ -24,8 +26,10 @@ from app.llm.schemas import (
     TypologyMappingOutput,
 )
 from app.ml.model_service import ModelArtifactError, ModelService, get_model_service
+from app.rag.pgvector_store import RagStoreUnavailable
+from app.services.candidate_service import CandidateGenerationService
 from app.services.data_service import DataService, get_data_service
-from app.services.knowledge_retriever import KnowledgeRetriever, get_knowledge_retriever
+from app.services.knowledge_retriever import KnowledgeRetriever, LocalKeywordRetriever, get_knowledge_retriever
 
 AgentNode = Any
 
@@ -46,6 +50,8 @@ def make_agent_nodes(
         MODEL_EXPLANATION_AGENT: model_explanation_agent(service, client, scorer),
         TYPOLOGY_MAPPING_AGENT: typology_mapping_agent(retriever, client),
         FEATURE_CRITIC_AGENT: feature_critic_agent(service, client, scorer),
+        CANDIDATE_RANKING_AGENT: candidate_ranking_agent(service, scorer, client),
+        CASE_INVESTIGATION_AGENT: case_investigation_agent(service, scorer),
         EVIDENCE_ASSEMBLY_AGENT: evidence_assembly_agent(client),
         JUDGE_PANEL_AGENT: judge_panel_agent(client),
         GUARDRAIL_AGENT: guardrail_agent(client),
@@ -115,7 +121,16 @@ def typology_mapping_agent(knowledge_retriever: KnowledgeRetriever, llm_client: 
     """Build a node that maps behaviour to AML typologies using careful language."""
 
     def node(state: AMLAgentState) -> AMLAgentState:
-        documents = knowledge_retriever.search(state["query"], limit=3)
+        fallback_reason = ""
+        try:
+            documents = knowledge_retriever.search(state["query"], limit=3)
+        except RagStoreUnavailable:
+            if state["task_type"] != "investigate_model_prioritized_candidate":
+                raise
+            fallback_reason = (
+                "pgvector unavailable; used local keyword fallback for primary investigator handoff review."
+            )
+            documents = LocalKeywordRetriever().search(state["query"], limit=3)
         serialized = [document.model_dump(mode="json") for document in documents]
         state["retrieved_documents"] = serialized
         inputs = {
@@ -131,7 +146,7 @@ def typology_mapping_agent(knowledge_retriever: KnowledgeRetriever, llm_client: 
             summary=output.careful_language_summary,
             findings=[*output.matched_typologies, *output.supporting_indicators],
             evidence=serialized,
-            limitations=output.missing_evidence,
+            limitations=([fallback_reason] if fallback_reason else []) + output.missing_evidence,
             confidence=output.confidence,
             citations=citations,
             structured_output=output.model_dump(mode="json"),
@@ -167,6 +182,71 @@ def feature_critic_agent(
             limitations=[*output.unstable_features, *output.possible_leakage_risks],
             confidence=0.74 if features else 0.3,
             structured_output=output.model_dump(mode="json"),
+        )
+
+    return node
+
+
+def candidate_ranking_agent(
+    data_service: DataService,
+    model_service: ModelService | None = None,
+    llm_client: LLMClient | None = None,
+) -> AgentNode:
+    """Build a node that creates ranked model-driven candidates for investigator handoff."""
+
+    def node(state: AMLAgentState) -> AMLAgentState:
+        result = CandidateGenerationService(
+            data_service=data_service,
+            model_service=model_service,
+            llm_client=llm_client,
+        ).generate(top_k=10)
+        state["candidate_packages"] = result["candidate_packages"]
+        state["model_run_summary"] = result["model_run_summary"]
+        state["model_results"] = result.get("model_results", {})
+        state["model_outputs"] = result
+        findings = [
+            f"Rank {package['rank']}: {package['customer_id']} score {package['score']}"
+            for package in result["candidate_packages"][:5]
+        ]
+        return _record_agent_output(
+            state,
+            CANDIDATE_RANKING_AGENT,
+            summary="Generated model-driven AML investigation candidates for investigator handoff.",
+            findings=findings or ["No model candidates generated; model artifact may be unavailable."],
+            evidence=result["candidate_packages"],
+            limitations=result["model_limitations"],
+            confidence=0.8 if result["candidate_packages"] else 0.35,
+            structured_output=result,
+        )
+
+    return node
+
+
+def case_investigation_agent(data_service: DataService, model_service: ModelService | None = None) -> AgentNode:
+    """Build a node that prepares investigator case review and feedback."""
+
+    def node(state: AMLAgentState) -> AMLAgentState:
+        review = CandidateGenerationService(
+            data_service=data_service,
+            model_service=model_service,
+        ).build_case_review(
+            state.get("customer_id"),
+            query=state["query"],
+            state_outputs=state.get("agent_outputs", {}),
+        )
+        state["investigation_case_review"] = review
+        return _record_agent_output(
+            state,
+            CASE_INVESTIGATION_AGENT,
+            summary="Prepared investigator case review and feedback for model monitoring.",
+            findings=[
+                f"Disposition recommendation: {review['disposition_recommendation']}",
+                f"Model feedback label: {review['investigator_feedback']['label_for_model_evaluation']}",
+            ],
+            evidence=[review["candidate_package"]],
+            limitations=review["missing_evidence"],
+            confidence=0.76,
+            structured_output=review,
         )
 
     return node
@@ -329,6 +409,21 @@ def _compose_adaptive_report(state: AMLAgentState, output: EvidenceAssemblyOutpu
                 str(agent_outputs[TRANSACTION_BEHAVIOUR_AGENT].get("summary", "")),
             ]
         )
+    if CANDIDATE_RANKING_AGENT in agent_outputs:
+        packages = state.get("candidate_packages", [])
+        ranking_rows = [
+            f"| {package['rank']} | {package['customer_id']} | {package['score']} | {package['alert_recommendation']} |"
+            for package in packages[:10]
+        ]
+        sections.extend(
+            [
+                "## Model-Driven Candidate Ranking",
+                str(agent_outputs[CANDIDATE_RANKING_AGENT].get("summary", "")),
+                "| Rank | Customer | Score | Recommendation |",
+                "| --- | --- | --- | --- |",
+                *ranking_rows,
+            ]
+        )
     if MODEL_EXPLANATION_AGENT in agent_outputs:
         sections.extend(
             [
@@ -348,6 +443,17 @@ def _compose_adaptive_report(state: AMLAgentState, output: EvidenceAssemblyOutpu
             [
                 "## Feature Quality Review",
                 str(agent_outputs[FEATURE_CRITIC_AGENT].get("summary", "")),
+            ]
+        )
+    if CASE_INVESTIGATION_AGENT in agent_outputs:
+        review = state.get("investigation_case_review", {})
+        feedback = review.get("investigator_feedback", {}) if isinstance(review, dict) else {}
+        sections.extend(
+            [
+                "## Investigator Case Review",
+                str(agent_outputs[CASE_INVESTIGATION_AGENT].get("summary", "")),
+                f"Disposition recommendation: {review.get('disposition_recommendation', 'unknown')}",
+                f"Model feedback label: {feedback.get('label_for_model_evaluation', 'unknown')}",
             ]
         )
 

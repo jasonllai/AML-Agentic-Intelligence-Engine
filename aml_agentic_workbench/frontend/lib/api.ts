@@ -1,6 +1,8 @@
 import type {
   AnalysisRequest,
   AnalysisResponse,
+  CustomerDataResponse,
+  CustomerDataSourcesResponse,
   EvaluationRunSummary,
   GoldenDatasetResponse,
   HealthResponse,
@@ -31,6 +33,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<HealthResponse>("/health"),
   roles: () => request<RoleCatalogResponse>("/roles"),
+  customerDataSources: () => request<CustomerDataSourcesResponse>("/customer-data/sources"),
+  customerData: (customerId: string, source = "all", limit = 100) =>
+    request<CustomerDataResponse>(
+      `/customer-data/customer/${encodeURIComponent(customerId)}?source=${encodeURIComponent(source)}&limit=${limit}`
+    ),
   runAnalysis: (payload: AnalysisRequest) =>
     request<AnalysisResponse>("/analysis", {
       method: "POST",

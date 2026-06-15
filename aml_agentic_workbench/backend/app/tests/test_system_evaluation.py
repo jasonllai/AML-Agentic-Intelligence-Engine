@@ -19,9 +19,12 @@ def test_golden_dataset_covers_roles_tasks_and_edge_cases() -> None:
     tags = {tag for case in cases for tag in case.tags}
 
     assert roles == set(SupportedRole)
-    assert "investigator_summary" in task_types
+    assert "generate_model_driven_candidates" in task_types
+    assert "investigate_model_prioritized_candidate" in task_types
     assert "prompt_injection" in tags
     assert "missing_customer" in tags
+    assert "candidate_package" in tags
+    assert "investigator_feedback" in tags
     assert any(case.requires_citations for case in cases)
     assert all(case.expected_agents for case in cases)
 

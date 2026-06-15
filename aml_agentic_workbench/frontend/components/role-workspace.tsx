@@ -4,27 +4,38 @@ import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { AgentProgressTimeline } from "@/components/agent-progress-timeline";
 import { ReportView } from "@/components/report-view";
-import { RoutePreview } from "@/components/route-preview";
 import { Badge, Button, Card, FieldLabel } from "@/components/ui";
 import { agents, defaultRoute, roles, tasks } from "@/lib/catalog";
 import { api } from "@/lib/api";
 import { formatLabel } from "@/lib/utils";
 import type { AgentName, AnalysisRequest, AnalysisResponse, SupportedRole, TaskType } from "@/types/api";
 
-export function RoleWorkspace({ role }: { role: SupportedRole }) {
+export function RoleWorkspace({
+  role,
+  initialCustomerId,
+  initialModelFamily
+}: {
+  role: SupportedRole;
+  initialCustomerId?: string;
+  initialModelFamily?: string;
+}) {
   const roleDetail = roles[role];
+  const handoffCustomerId = initialCustomerId ?? "";
   const [task, setTask] = useState<TaskType>(roleDetail.defaultTask);
-  const [customerId, setCustomerId] = useState(roleDetail.defaultCustomerId);
-  const [query, setQuery] = useState(roleDetail.defaultQuery);
-  const [requireFullReport, setRequireFullReport] = useState(false);
+  const [customerId, setCustomerId] = useState(handoffCustomerId || roleDetail.defaultCustomerId);
+  const [query, setQuery] = useState(
+    handoffCustomerId && role === "investigator"
+      ? `Investigate ${initialModelFamily ? `${formatLabel(initialModelFamily)} ` : ""}model-prioritized candidate ${handoffCustomerId} and return case feedback.`
+      : roleDetail.defaultQuery
+  );
 
   const route = useMemo(() => defaultRoute(role, task), [role, task]);
   const mutation = useMutation<AnalysisResponse, Error, AnalysisRequest>({ mutationFn: api.runAnalysis });
   const runPhase = mutation.isPending ? "running" : mutation.isError ? "failed" : mutation.data ? "completed" : "idle";
+  const isDataScientist = role === "data_scientist";
 
   function selectTask(nextTask: TaskType) {
     setTask(nextTask);
-    setRequireFullReport(nextTask === "full_intelligence_report");
     setQuery(queryFor(role, nextTask));
   }
 
@@ -34,26 +45,22 @@ export function RoleWorkspace({ role }: { role: SupportedRole }) {
       task_type: task,
       customer_id: customerId || undefined,
       query,
-      require_full_report: requireFullReport
+      require_full_report: false
     });
   }
 
   return (
     <div className="grid gap-6">
-      <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <Card>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <Badge>{formatLabel(role)}</Badge>
-              <h1 className="mt-4 text-3xl font-semibold text-ink">{roleDetail.label} Workspace</h1>
-              <p className="mt-3 text-sm leading-6 text-slate-600">{roleDetail.focus}</p>
-            </div>
-          </div>
+      <section className="rounded-lg border border-slate-200 bg-white shadow-soft">
+        <div className="grid gap-0 xl:grid-cols-[360px_1fr]">
+          <aside className="border-b border-slate-200 bg-slate-50 p-5 xl:border-b-0 xl:border-r">
+            <Badge tone="danger">{formatLabel(role)}</Badge>
+            <h1 className="mt-4 text-3xl font-semibold text-ink">{roleDetail.label}</h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600">{roleDetail.focus}</p>
 
-          <div className="mt-6 grid gap-4">
-            <div>
-              <FieldLabel>Available actions</FieldLabel>
-              <div className="grid gap-2 md:grid-cols-3">
+            <div className="mt-6">
+              <FieldLabel>Primary role function</FieldLabel>
+              <div className="grid gap-2">
                 {roleDetail.actions.map((action) => (
                   <button
                     key={action}
@@ -61,78 +68,102 @@ export function RoleWorkspace({ role }: { role: SupportedRole }) {
                     onClick={() => selectTask(action)}
                     className={[
                       "rounded-md border p-3 text-left text-sm transition",
-                      task === action ? "border-red-200 bg-red-50 text-bankred" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                      task === action
+                        ? "border-red-200 bg-white text-bankred shadow-sm"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                     ].join(" ")}
                   >
-                    <span className="font-semibold">{tasks[action]}</span>
+                    <span className="block font-semibold">{tasks[action]}</span>
+                    <span className="mt-1 block text-xs leading-5 text-slate-500">{roleDetail.reportStyle}</span>
                   </button>
                 ))}
               </div>
             </div>
+          </aside>
 
-            <div className="grid gap-4 md:grid-cols-[0.7fr_1.3fr]">
-              <div>
-                <FieldLabel>Customer ID</FieldLabel>
-                <input
-                  value={customerId}
-                  onChange={(event) => setCustomerId(event.target.value)}
-                  placeholder={role === "compliance_strategy" ? "Optional" : "Customer ID"}
-                  className="w-full rounded-md border border-slate-300 p-2 text-sm"
-                />
-              </div>
-              <label className="mt-7 flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={requireFullReport}
-                  onChange={(event) => setRequireFullReport(event.target.checked)}
-                />
-                Full intelligence package
-              </label>
+          <div className="grid gap-5 p-5 lg:p-6">
+            <div className="grid gap-4">
+              <Card className="border-slate-200 shadow-none">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-semibold text-ink">Workflow request</h2>
+                    <p className="mt-1 text-sm text-slate-600">{requestHelp(role)}</p>
+                  </div>
+                  <Badge>{route.length} workflow steps</Badge>
+                </div>
+
+                <div className="mt-5 grid gap-4">
+                  {!isDataScientist && (
+                    <>
+                      <div>
+                        <FieldLabel>Customer ID</FieldLabel>
+                        <input
+                          value={customerId}
+                          onChange={(event) => setCustomerId(event.target.value)}
+                          placeholder="Customer ID"
+                          className="w-full rounded-md border border-slate-300 bg-white p-2.5 text-sm"
+                        />
+                      </div>
+
+                      <details className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                        <summary className="cursor-pointer text-sm font-semibold text-ink">Advanced</summary>
+                        <div className="mt-3">
+                          <FieldLabel>Workflow instruction</FieldLabel>
+                          <textarea
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            rows={5}
+                            className="w-full rounded-md border border-slate-300 bg-white p-3 text-sm leading-6"
+                          />
+                        </div>
+                      </details>
+                    </>
+                  )}
+
+                  <Button onClick={submit} disabled={mutation.isPending || !query.trim()} className="w-full md:w-auto">
+                    {mutation.isPending ? "Workflow is running..." : `Run ${tasks[task]}`}
+                  </Button>
+                  {mutation.isError && (
+                    <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-danger">
+                      {friendlyError(mutation.error.message)}
+                    </div>
+                  )}
+                </div>
+              </Card>
+
             </div>
 
-            <div>
-              <FieldLabel>Question for the agents</FieldLabel>
-              <textarea
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                rows={5}
-                className="w-full rounded-md border border-slate-300 p-3 text-sm leading-6"
+            <div className="grid gap-5">
+              <AgentProgressTimeline
+                route={route}
+                executedAgents={mutation.data?.executed_agents as AgentName[] | undefined}
+                phase={runPhase}
               />
             </div>
-
-            <Button onClick={submit} disabled={mutation.isPending || !query.trim()}>
-              {mutation.isPending ? "Agents are working..." : `Run ${tasks[task]}`}
-            </Button>
-            {mutation.isError && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-danger">
-                {friendlyError(mutation.error.message)}
-              </div>
-            )}
           </div>
-        </Card>
-
-        <div className="grid gap-6">
-          <RoutePreview route={route} />
-          <AgentProgressTimeline route={route} executedAgents={mutation.data?.executed_agents as AgentName[] | undefined} phase={runPhase} />
         </div>
       </section>
 
       {mutation.data ? (
         <ReportView report={mutation.data} />
       ) : (
-        <Card>
-          <h2 className="text-xl font-semibold text-ink">Output will appear here</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            The completed package will be rendered as readable AML sections, evidence cards, citation tables,
-            judge scores, and audit events. Raw structured payloads stay out of the primary view.
-          </p>
-          <div className="mt-5 grid gap-2 md:grid-cols-2">
-            {route.map((agent) => (
-              <div key={agent} className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-                <div className="font-semibold text-ink">{agents[agent]?.label}</div>
-                <div className="mt-1 text-slate-600">{agents[agent]?.sections.join(", ")}</div>
-              </div>
-            ))}
+        <Card className="border-dashed bg-white/70">
+          <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
+            <div>
+              <h2 className="text-2xl font-semibold text-ink">Report workspace is ready</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                After execution, this area becomes the governed workflow report with candidate packages,
+                investigation feedback, judge scores, evidence, and audit history.
+              </p>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {route.map((agent) => (
+                <div key={agent} className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+                  <div className="font-semibold text-ink">{agents[agent]?.label}</div>
+                  <div className="mt-1 text-slate-600">{agents[agent]?.sections.join(", ")}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </Card>
       )}
@@ -141,6 +172,12 @@ export function RoleWorkspace({ role }: { role: SupportedRole }) {
 }
 
 function queryFor(role: SupportedRole, task: TaskType): string {
+  if (task === "generate_model_driven_candidates") {
+    return "Generate ranked model-driven AML investigation candidates for investigator handoff.";
+  }
+  if (task === "investigate_model_prioritized_candidate") {
+    return "Investigate this model-prioritized candidate and return case feedback.";
+  }
   if (task === "typology_mapping" || task === "compliance_typology_review") {
     return "Map this activity to official AML typology indicators with citations and non-conclusive wording.";
   }
@@ -154,6 +191,16 @@ function queryFor(role: SupportedRole, task: TaskType): string {
     return "Summarize unusual customer behaviour, evidence, limitations, and next review steps.";
   }
   return roles[role].defaultQuery;
+}
+
+function requestHelp(role: SupportedRole): string {
+  if (role === "data_scientist") {
+    return "Run population scoring and produce a ranked candidate handoff for investigators.";
+  }
+  if (role === "investigator") {
+    return "Review one model-prioritized customer and return evidence, disposition, and model feedback.";
+  }
+  return "Configure the governed workflow before the route runs.";
 }
 
 function friendlyError(message: string): string {

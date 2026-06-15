@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import analysis, evaluations, health, reports, roles
+from app.api.routes import analysis, customer_data, evaluations, health, reports, roles
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 
@@ -18,7 +18,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Configure process-wide services for the API lifecycle."""
     settings = get_settings()
     configure_logging(settings.log_level)
-    logger.info("Starting AML Agentic Intelligence Workbench", extra={"environment": settings.environment})
+    logger.info(
+        "Starting AML Agentic Intelligence Workbench",
+        extra={
+            "environment": settings.environment,
+            "llm_provider": "openai_compatible" if settings.openai_api_key else "mock",
+            "llm_model": settings.openai_model if settings.openai_api_key else settings.mock_llm_model,
+        },
+    )
     yield
     logger.info("Stopping AML Agentic Intelligence Workbench")
 
@@ -44,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix=settings.api_prefix)
     app.include_router(roles.router, prefix=settings.api_prefix)
     app.include_router(analysis.router, prefix=settings.api_prefix)
+    app.include_router(customer_data.router, prefix=settings.api_prefix)
     app.include_router(reports.router, prefix=settings.api_prefix)
     app.include_router(evaluations.router, prefix=settings.api_prefix)
     return app

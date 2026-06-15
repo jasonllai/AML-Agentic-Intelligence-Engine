@@ -38,6 +38,9 @@ class ReportDetailResponse(BaseModel):
     status: str
     guardrail_status: str
     final_report: str | None = None
+    model_run_summary: dict[str, Any] | None = None
+    candidate_packages: list[dict[str, Any]] = Field(default_factory=list)
+    investigation_case_review: dict[str, Any] | None = None
     executed_agents: list[str] = Field(default_factory=list)
     judge_scores: dict[str, float] | None = None
     route_explanation: str | None = None

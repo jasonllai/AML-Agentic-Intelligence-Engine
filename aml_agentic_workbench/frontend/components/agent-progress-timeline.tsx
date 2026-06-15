@@ -45,7 +45,7 @@ export function AgentProgressTimeline({
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-ink">Agent execution flow</h2>
+          <h2 className="text-lg font-semibold text-ink">Execution Flow</h2>
           <p className="mt-1 text-sm text-slate-600">
             {phase === "running"
               ? "Estimated live progress while the backend completes the non-streaming analysis request."

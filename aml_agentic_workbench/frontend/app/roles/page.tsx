@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Shell } from "@/components/shell";
 import { Badge, Button, Card } from "@/components/ui";
-import { roles } from "@/lib/catalog";
+import { primaryRoles, roles } from "@/lib/catalog";
 import { formatLabel } from "@/lib/utils";
 
 export default function RolesPage() {
@@ -10,12 +10,14 @@ export default function RolesPage() {
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold text-ink">Role Selection</h1>
-          <p className="mt-2 text-slate-600">Choose a workflow lens before routing agents and report sections.</p>
+          <p className="mt-2 text-slate-600">Choose one of the two primary AML operating workflows.</p>
         </div>
         <Link href="/"><Button>Select Role</Button></Link>
       </div>
       <div className="grid gap-5 md:grid-cols-2">
-        {Object.entries(roles).map(([role, detail]) => (
+        {primaryRoles.map((role) => {
+          const detail = roles[role];
+          return (
           <Card key={role}>
             <div className="flex items-start justify-between">
               <h2 className="text-xl font-semibold text-ink">{detail.label}</h2>
@@ -32,7 +34,8 @@ export default function RolesPage() {
               Open workspace
             </Link>
           </Card>
-        ))}
+          );
+        })}
       </div>
     </Shell>
   );

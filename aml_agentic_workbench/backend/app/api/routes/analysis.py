@@ -54,6 +54,42 @@ async def create_analysis(request: AnalysisRequest) -> AnalysisResponse:
         if "pgvector RAG store is not initialized or unavailable" in str(exc):
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         raise
+    if request.task_type == "generate_model_driven_candidates":
+        AgentRunLogger().create_run_record(
+            run_id=run_id,
+            role=request.role.value,
+            task_type=request.task_type,
+            query=request.query,
+            customer_id=request.customer_id,
+            alert_id=request.alert_id,
+            route=route.agents,
+            route_explanation=route.explanation,
+        )
+        AgentRunLogger().create_step_records(run_id, final_state)
+        result = {
+            "message": "AML model workbench generated four-model investigation candidates.",
+            "query": request.query,
+            "require_full_report": request.require_full_report,
+            "agent_outputs": final_state.get("agent_outputs", {}),
+            "model_run_summary": final_state.get("model_run_summary"),
+            "model_results": final_state.get("model_results", {}),
+            "model_comparison": (final_state.get("model_outputs") or {}).get("model_comparison", []),
+            "candidate_packages": final_state.get("candidate_packages", []),
+            "investigation_case_review": None,
+            "audit_trace": final_state.get("audit_trace", []),
+        }
+        response = AnalysisResponse(
+            run_id=run_id,
+            role=request.role,
+            executed_agents=final_state.get("executed_agents", []),
+            status="completed",
+            result=result,
+            guardrail_status="passed",
+            judge_scores=None,
+            route_explanation=route.explanation,
+        )
+        run_store.add(response, task_type=request.task_type)
+        return response
     final_report = final_state.get("final_report") or ""
     citations = _collect_citations(final_state)
     policy_context = {
@@ -100,6 +136,9 @@ async def create_analysis(request: AnalysisRequest) -> AnalysisResponse:
         "query": request.query,
         "require_full_report": request.require_full_report,
         "agent_outputs": final_state.get("agent_outputs", {}),
+        "model_run_summary": final_state.get("model_run_summary"),
+        "candidate_packages": final_state.get("candidate_packages", []),
+        "investigation_case_review": final_state.get("investigation_case_review"),
         "final_report": final_report,
         "audit_trace": final_state.get("audit_trace", []),
         "judge_panel": judge_result.model_dump(mode="json"),

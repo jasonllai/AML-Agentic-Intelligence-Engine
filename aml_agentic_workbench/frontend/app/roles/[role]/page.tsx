@@ -6,14 +6,24 @@ import type { SupportedRole } from "@/types/api";
 
 const supportedRoles = Object.keys(roles) as SupportedRole[];
 
-export default function RoleWorkspacePage({ params }: { params: { role: string } }) {
+export default function RoleWorkspacePage({
+  params,
+  searchParams
+}: {
+  params: { role: string };
+  searchParams: { customerId?: string; modelFamily?: string };
+}) {
   if (!supportedRoles.includes(params.role as SupportedRole)) {
     notFound();
   }
 
   return (
     <Shell>
-      <RoleWorkspace role={params.role as SupportedRole} />
+      <RoleWorkspace
+        role={params.role as SupportedRole}
+        initialCustomerId={searchParams.customerId}
+        initialModelFamily={searchParams.modelFamily}
+      />
     </Shell>
   );
 }

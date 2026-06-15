@@ -1,5 +1,7 @@
 import type { AgentName, SupportedRole, TaskType } from "@/types/api";
 
+export const primaryRoles: SupportedRole[] = ["data_scientist", "investigator"];
+
 export const roles: Record<
   SupportedRole,
   {
@@ -15,23 +17,23 @@ export const roles: Record<
 > = {
   data_scientist: {
     label: "Data Scientist",
-    focus: "Feature behaviour, model drivers, anomaly patterns, and analytical next steps.",
-    tasks: ["Model risk explanation", "Feature quality review", "Full intelligence report"],
-    reportStyle: "Technical, feature-rich, and explicit about model limitations.",
-    defaultTask: "model_risk_explanation",
-    defaultCustomerId: "SYNID0100000485",
-    defaultQuery: "Explain this customer's anomaly score, strongest model drivers, and feature limitations.",
-    actions: ["model_risk_explanation", "feature_quality_review", "full_intelligence_report"]
+    focus: "Model-driven AML detection, population scoring, threshold rationale, and investigator handoff.",
+    tasks: ["Generate model-driven investigation candidates"],
+    reportStyle: "Model run summary, ranked candidates, feature drivers, limitations, and handoff package.",
+    defaultTask: "generate_model_driven_candidates",
+    defaultCustomerId: "",
+    defaultQuery: "Generate ranked model-driven AML investigation candidates for investigator handoff.",
+    actions: ["generate_model_driven_candidates"]
   },
   investigator: {
     label: "Investigator",
-    focus: "Customer behaviour, evidence assembly, and careful case-oriented summaries.",
-    tasks: ["Investigator summary", "Customer behaviour analysis", "Typology mapping"],
-    reportStyle: "Plain AML language with evidence tables and review-ready findings.",
-    defaultTask: "investigator_summary",
+    focus: "Case-level review of model-prioritized candidates, typology indicators, disposition, and feedback.",
+    tasks: ["Investigate model-prioritized candidate"],
+    reportStyle: "Evidence review, careful typology mapping, disposition, and model feedback.",
+    defaultTask: "investigate_model_prioritized_candidate",
     defaultCustomerId: "CUST003",
-    defaultQuery: "Summarize unusual customer behaviour and map it to typology indicators with careful AML wording.",
-    actions: ["investigator_summary", "customer_behaviour_analysis", "typology_mapping"]
+    defaultQuery: "Investigate this model-prioritized candidate and return case feedback.",
+    actions: ["investigate_model_prioritized_candidate"]
   },
   model_validator: {
     label: "Model Validator",
@@ -56,6 +58,8 @@ export const roles: Record<
 };
 
 export const tasks: Record<TaskType, string> = {
+  generate_model_driven_candidates: "Generate model-driven investigation candidates",
+  investigate_model_prioritized_candidate: "Investigate model-prioritized candidate",
   customer_behaviour_analysis: "Customer behaviour analysis",
   model_risk_explanation: "Model risk explanation",
   typology_mapping: "Typology mapping",
@@ -67,6 +71,16 @@ export const tasks: Record<TaskType, string> = {
 };
 
 export const agents: Record<AgentName, { label: string; why: string; sections: string[] }> = {
+  candidate_ranking_agent: {
+    label: "Candidate Ranking",
+    why: "Scores the modeled population with four anomaly models and produces guarded candidate explanations.",
+    sections: ["Four-Model Candidate Ranking", "Guarded Candidate Explanations"]
+  },
+  case_investigation_agent: {
+    label: "Case Investigation",
+    why: "Turns candidate context into disposition, missing evidence, and model feedback.",
+    sections: ["Investigator Case Review", "Model Feedback"]
+  },
   transaction_behaviour_agent: {
     label: "Transaction Behaviour",
     why: "Profiles velocity, counterparties, cross-border exposure, and baseline deviations.",
@@ -105,6 +119,19 @@ export const agents: Record<AgentName, { label: string; why: string; sections: s
 };
 
 export function defaultRoute(role: SupportedRole, task: TaskType): AgentName[] {
+  if (role === "data_scientist" && task === "generate_model_driven_candidates") {
+    return ["candidate_ranking_agent", "guardrail_agent"];
+  }
+  if (role === "investigator" && task === "investigate_model_prioritized_candidate") {
+    return [
+      "transaction_behaviour_agent",
+      "typology_mapping_agent",
+      "case_investigation_agent",
+      "evidence_assembly_agent",
+      "judge_panel_agent",
+      "guardrail_agent"
+    ];
+  }
   if (task === "full_intelligence_report") {
     return [
       "transaction_behaviour_agent",

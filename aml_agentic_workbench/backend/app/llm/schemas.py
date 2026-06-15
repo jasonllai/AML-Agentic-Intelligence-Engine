@@ -53,6 +53,16 @@ class ModelExplanationOutput(BaseModel):
         return self
 
 
+class CandidateExplanationOutput(BaseModel):
+    """LLM-organized explanation for one deterministic model candidate."""
+
+    summary: str
+    model_reasoning: str
+    feature_driver_explanation: str
+    suggested_investigator_focus: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
 class TypologyMappingOutput(BaseModel):
     """Structured typology mapping output."""
 
@@ -130,4 +140,3 @@ class GuardrailReviewOutput(BaseModel):
     flags: list[str] = Field(default_factory=list)
     safe_summary: str
     required_disclaimers: list[str] = Field(default_factory=list)
-

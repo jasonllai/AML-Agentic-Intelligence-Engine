@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from app.llm.client import LLMClient
 from app.llm.schemas import (
+    CandidateExplanationOutput,
     Citation,
     EvidenceAssemblyOutput,
     FeatureCriticOutput,
@@ -84,6 +85,21 @@ class MockLLMClient(LLMClient):
                     "new_counterparty_ratio": "Higher values may increase risk depending on segment.",
                 },
                 "caveats": ["Model score is not proof of suspicious activity.", "Business context is required."],
+            }
+        if response_schema is CandidateExplanationOutput:
+            return {
+                "summary": "This customer was prioritized by the selected model based on elevated model drivers.",
+                "model_reasoning": (
+                    "The score is a model-driven prioritization signal based only on the supplied feature evidence."
+                ),
+                "feature_driver_explanation": (
+                    "The listed feature drivers contributed most to the model ranking for this customer."
+                ),
+                "suggested_investigator_focus": [
+                    "Review the transactions connected to the top model drivers.",
+                    "Compare activity against expected customer profile before disposition.",
+                ],
+                "limitations": ["Model output is not proof of suspicious activity."],
             }
         if response_schema is TypologyMappingOutput:
             return {

@@ -1,6 +1,8 @@
 """Shared constants for the AML workbench."""
 
 SUPPORTED_TASK_TYPES: tuple[str, ...] = (
+    "generate_model_driven_candidates",
+    "investigate_model_prioritized_candidate",
     "customer_behaviour_analysis",
     "model_risk_explanation",
     "typology_mapping",

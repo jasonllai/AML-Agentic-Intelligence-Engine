@@ -19,7 +19,11 @@ class AMLAgentState(TypedDict, total=False):
     executed_agents: list[str]
     transaction_summary: dict[str, Any] | None
     model_outputs: dict[str, Any] | None
+    model_results: dict[str, list[dict[str, Any]]]
     retrieved_documents: list[dict[str, Any]]
+    candidate_packages: list[dict[str, Any]]
+    model_run_summary: dict[str, Any] | None
+    investigation_case_review: dict[str, Any] | None
     agent_outputs: dict[str, dict[str, Any]]
     judge_outputs: dict[str, Any]
     guardrail_flags: list[str]
@@ -51,7 +55,11 @@ def initial_state(
         executed_agents=[],
         transaction_summary=None,
         model_outputs=None,
+        model_results={},
         retrieved_documents=[],
+        candidate_packages=[],
+        model_run_summary=None,
+        investigation_case_review=None,
         agent_outputs={},
         judge_outputs={},
         guardrail_flags=[],

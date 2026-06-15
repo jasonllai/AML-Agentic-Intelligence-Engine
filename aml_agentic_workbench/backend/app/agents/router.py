@@ -9,6 +9,8 @@ TRANSACTION_BEHAVIOUR_AGENT = "transaction_behaviour_agent"
 MODEL_EXPLANATION_AGENT = "model_explanation_agent"
 TYPOLOGY_MAPPING_AGENT = "typology_mapping_agent"
 FEATURE_CRITIC_AGENT = "feature_critic_agent"
+CANDIDATE_RANKING_AGENT = "candidate_ranking_agent"
+CASE_INVESTIGATION_AGENT = "case_investigation_agent"
 EVIDENCE_ASSEMBLY_AGENT = "evidence_assembly_agent"
 GUARDRAIL_AGENT = "guardrail_agent"
 JUDGE_PANEL_AGENT = "judge_panel_agent"
@@ -18,6 +20,8 @@ SUPPORTED_AGENTS: tuple[str, ...] = (
     MODEL_EXPLANATION_AGENT,
     TYPOLOGY_MAPPING_AGENT,
     FEATURE_CRITIC_AGENT,
+    CANDIDATE_RANKING_AGENT,
+    CASE_INVESTIGATION_AGENT,
     EVIDENCE_ASSEMBLY_AGENT,
     GUARDRAIL_AGENT,
     JUDGE_PANEL_AGENT,
@@ -30,6 +34,7 @@ ROLE_AGENT_PERMISSIONS: dict[SupportedRole, set[str]] = {
         TRANSACTION_BEHAVIOUR_AGENT,
         MODEL_EXPLANATION_AGENT,
         FEATURE_CRITIC_AGENT,
+        CANDIDATE_RANKING_AGENT,
         EVIDENCE_ASSEMBLY_AGENT,
         JUDGE_PANEL_AGENT,
         GUARDRAIL_AGENT,
@@ -37,6 +42,7 @@ ROLE_AGENT_PERMISSIONS: dict[SupportedRole, set[str]] = {
     SupportedRole.INVESTIGATOR: {
         TRANSACTION_BEHAVIOUR_AGENT,
         TYPOLOGY_MAPPING_AGENT,
+        CASE_INVESTIGATION_AGENT,
         EVIDENCE_ASSEMBLY_AGENT,
         JUDGE_PANEL_AGENT,
         GUARDRAIL_AGENT,
@@ -67,6 +73,17 @@ FULL_INTELLIGENCE_ROUTE: tuple[str, ...] = (
 )
 
 ROUTE_TABLE: dict[tuple[SupportedRole, str], tuple[str, ...]] = {
+    (SupportedRole.DATA_SCIENTIST, "generate_model_driven_candidates"): (
+        CANDIDATE_RANKING_AGENT,
+    ),
+    (SupportedRole.INVESTIGATOR, "investigate_model_prioritized_candidate"): (
+        TRANSACTION_BEHAVIOUR_AGENT,
+        TYPOLOGY_MAPPING_AGENT,
+        CASE_INVESTIGATION_AGENT,
+        EVIDENCE_ASSEMBLY_AGENT,
+        JUDGE_PANEL_AGENT,
+        GUARDRAIL_AGENT,
+    ),
     (SupportedRole.DATA_SCIENTIST, "model_risk_explanation"): (
         TRANSACTION_BEHAVIOUR_AGENT,
         MODEL_EXPLANATION_AGENT,
@@ -98,6 +115,17 @@ ROUTE_TABLE: dict[tuple[SupportedRole, str], tuple[str, ...]] = {
 }
 
 TASK_FALLBACK_ROUTES: dict[str, tuple[str, ...]] = {
+    "generate_model_driven_candidates": (
+        CANDIDATE_RANKING_AGENT,
+    ),
+    "investigate_model_prioritized_candidate": (
+        TRANSACTION_BEHAVIOUR_AGENT,
+        TYPOLOGY_MAPPING_AGENT,
+        CASE_INVESTIGATION_AGENT,
+        EVIDENCE_ASSEMBLY_AGENT,
+        JUDGE_PANEL_AGENT,
+        GUARDRAIL_AGENT,
+    ),
     "customer_behaviour_analysis": (
         TRANSACTION_BEHAVIOUR_AGENT,
         EVIDENCE_ASSEMBLY_AGENT,
@@ -199,6 +227,8 @@ class RoleAwareRouter:
             raise RouteValidationError(
                 f"Role '{route.role.value}' cannot execute agent(s): {', '.join(unauthorized)}."
             )
+        if route.task_type == "generate_model_driven_candidates" and route.agents[-1] == CANDIDATE_RANKING_AGENT:
+            return
         if route.agents[-1] != MANDATORY_FINAL_AGENT:
             raise RouteValidationError("guardrail_agent must be the final route step.")
 

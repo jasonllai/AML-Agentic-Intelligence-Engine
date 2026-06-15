@@ -1,15 +1,31 @@
 """Environment-driven application configuration."""
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def env_file_candidates() -> tuple[str, ...]:
+    """Return dotenv files searched by the backend, from shared to local override."""
+    current_file = Path(__file__).resolve()
+    backend_dir = current_file.parents[2]
+    project_dir = current_file.parents[3]
+    repo_root = current_file.parents[4]
+    candidates = [
+        repo_root / ".env",
+        project_dir / ".env",
+        backend_dir / ".env",
+        Path.cwd() / ".env",
+    ]
+    return tuple(dict.fromkeys(str(path) for path in candidates))
+
+
 class Settings(BaseSettings):
     """Runtime settings loaded from environment variables."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=env_file_candidates(), env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "AML Agentic Intelligence Workbench"
     app_version: str = "0.1.0"

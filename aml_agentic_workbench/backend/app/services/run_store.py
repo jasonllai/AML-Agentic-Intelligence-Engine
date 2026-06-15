@@ -29,6 +29,9 @@ class RunStore:
             status=response.status,
             guardrail_status=response.guardrail_status,
             final_report=_as_str(result.get("final_report")),
+            model_run_summary=_as_optional_dict(result.get("model_run_summary")),
+            candidate_packages=_as_list(result.get("candidate_packages")),
+            investigation_case_review=_as_optional_dict(result.get("investigation_case_review")),
             executed_agents=response.executed_agents,
             judge_scores=response.judge_scores,
             route_explanation=response.route_explanation,
@@ -67,6 +70,10 @@ class RunStore:
 
 def _as_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _as_optional_dict(value: Any) -> dict[str, Any] | None:
+    return value if isinstance(value, dict) else None
 
 
 def _as_list(value: Any) -> list[dict[str, Any]]:
