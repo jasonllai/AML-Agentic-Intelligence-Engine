@@ -48,3 +48,7 @@ class BaseJudge(ABC):
             recommended_fix=recommended_fix,
             severity=severity,
         )
+
+    @staticmethod
+    def _bounded_score(score: float, *, upper: float = 0.95) -> float:
+        return max(0.0, min(upper, score))

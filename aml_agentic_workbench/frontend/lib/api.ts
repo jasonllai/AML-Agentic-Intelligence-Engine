@@ -1,6 +1,8 @@
 import type {
   AnalysisRequest,
   AnalysisResponse,
+  AnalysisStreamEvent,
+  AnalysisStreamHandlers,
   CustomerDataResponse,
   CustomerDataSourcesResponse,
   EvaluationRunSummary,
@@ -43,6 +45,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload)
     }),
+  runAnalysisStream: (payload: AnalysisRequest, handlers: AnalysisStreamHandlers = {}) =>
+    runAnalysisStream(payload, handlers),
   reports: () => request<ReportListResponse>("/reports"),
   report: (runId: string) => request<ReportDetailResponse>(`/reports/${runId}`),
   generateGoldenDataset: (caseLimit = 100) =>
@@ -58,3 +62,70 @@ export const api = {
   evaluations: () => request<EvaluationRunSummary[]>("/evaluations"),
   evaluation: (runId: string) => request<EvaluationRunSummary>(`/evaluations/${runId}`)
 };
+
+async function runAnalysisStream(
+  payload: AnalysisRequest,
+  handlers: AnalysisStreamHandlers
+): Promise<AnalysisResponse> {
+  const response = await fetch(`${API_BASE_URL}/analysis/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `API request failed with ${response.status}`);
+  }
+  if (!response.body) {
+    throw new Error("Streaming response did not include a readable body.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalResponse: AnalysisResponse | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() ?? "";
+    for (const block of blocks) {
+      const event = parseSseBlock(block);
+      if (!event) continue;
+      handlers.onEvent?.(event);
+      if (event.event === "run_failed") {
+        throw new Error(event.message || "Streaming analysis failed.");
+      }
+      if (event.event === "run_completed" && event.response) {
+        finalResponse = event.response;
+        handlers.onComplete?.(event.response);
+      }
+    }
+    if (done) break;
+  }
+
+  if (buffer.trim()) {
+    const event = parseSseBlock(buffer);
+    if (event) {
+      handlers.onEvent?.(event);
+      if (event.event === "run_completed" && event.response) {
+        finalResponse = event.response;
+        handlers.onComplete?.(event.response);
+      }
+    }
+  }
+  if (!finalResponse) {
+    throw new Error("Streaming analysis ended before the final response was received.");
+  }
+  return finalResponse;
+}
+
+function parseSseBlock(block: string): AnalysisStreamEvent | null {
+  const lines = block.split("\n").map((line) => line.trim());
+  const eventName = lines.find((line) => line.startsWith("event:"))?.replace(/^event:\s*/, "");
+  const data = lines.find((line) => line.startsWith("data:"))?.replace(/^data:\s*/, "");
+  if (!eventName || !data) return null;
+  return { event: eventName, ...JSON.parse(data) } as AnalysisStreamEvent;
+}

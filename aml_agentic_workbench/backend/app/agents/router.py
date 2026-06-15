@@ -11,7 +11,9 @@ TYPOLOGY_MAPPING_AGENT = "typology_mapping_agent"
 FEATURE_CRITIC_AGENT = "feature_critic_agent"
 CANDIDATE_RANKING_AGENT = "candidate_ranking_agent"
 CASE_INVESTIGATION_AGENT = "case_investigation_agent"
+SUPERVISOR_PLANNER_AGENT = "supervisor_planner_agent"
 EVIDENCE_ASSEMBLY_AGENT = "evidence_assembly_agent"
+REPORT_CRITIC_AGENT = "report_critic_agent"
 GUARDRAIL_AGENT = "guardrail_agent"
 JUDGE_PANEL_AGENT = "judge_panel_agent"
 
@@ -22,12 +24,15 @@ SUPPORTED_AGENTS: tuple[str, ...] = (
     FEATURE_CRITIC_AGENT,
     CANDIDATE_RANKING_AGENT,
     CASE_INVESTIGATION_AGENT,
+    SUPERVISOR_PLANNER_AGENT,
     EVIDENCE_ASSEMBLY_AGENT,
+    REPORT_CRITIC_AGENT,
     GUARDRAIL_AGENT,
     JUDGE_PANEL_AGENT,
 )
 
 MANDATORY_FINAL_AGENT = GUARDRAIL_AGENT
+AGENTIC_CONTROL_AGENTS = {SUPERVISOR_PLANNER_AGENT, REPORT_CRITIC_AGENT}
 
 ROLE_AGENT_PERMISSIONS: dict[SupportedRole, set[str]] = {
     SupportedRole.DATA_SCIENTIST: {
@@ -43,7 +48,9 @@ ROLE_AGENT_PERMISSIONS: dict[SupportedRole, set[str]] = {
         TRANSACTION_BEHAVIOUR_AGENT,
         TYPOLOGY_MAPPING_AGENT,
         CASE_INVESTIGATION_AGENT,
+        SUPERVISOR_PLANNER_AGENT,
         EVIDENCE_ASSEMBLY_AGENT,
+        REPORT_CRITIC_AGENT,
         JUDGE_PANEL_AGENT,
         GUARDRAIL_AGENT,
     },
@@ -77,10 +84,12 @@ ROUTE_TABLE: dict[tuple[SupportedRole, str], tuple[str, ...]] = {
         CANDIDATE_RANKING_AGENT,
     ),
     (SupportedRole.INVESTIGATOR, "investigate_model_prioritized_candidate"): (
+        SUPERVISOR_PLANNER_AGENT,
         TRANSACTION_BEHAVIOUR_AGENT,
         TYPOLOGY_MAPPING_AGENT,
         CASE_INVESTIGATION_AGENT,
         EVIDENCE_ASSEMBLY_AGENT,
+        REPORT_CRITIC_AGENT,
         JUDGE_PANEL_AGENT,
         GUARDRAIL_AGENT,
     ),
@@ -119,10 +128,12 @@ TASK_FALLBACK_ROUTES: dict[str, tuple[str, ...]] = {
         CANDIDATE_RANKING_AGENT,
     ),
     "investigate_model_prioritized_candidate": (
+        SUPERVISOR_PLANNER_AGENT,
         TRANSACTION_BEHAVIOUR_AGENT,
         TYPOLOGY_MAPPING_AGENT,
         CASE_INVESTIGATION_AGENT,
         EVIDENCE_ASSEMBLY_AGENT,
+        REPORT_CRITIC_AGENT,
         JUDGE_PANEL_AGENT,
         GUARDRAIL_AGENT,
     ),
@@ -218,6 +229,16 @@ class RoleAwareRouter:
         unknown_agents = [agent for agent in route.agents if agent not in SUPPORTED_AGENTS]
         if unknown_agents:
             raise RouteValidationError(f"Unsupported agent selection: {', '.join(unknown_agents)}.")
+        route_control_agents = [agent for agent in route.agents if agent in AGENTIC_CONTROL_AGENTS]
+        if route_control_agents and (
+            route.role != SupportedRole.INVESTIGATOR
+            or route.task_type != "investigate_model_prioritized_candidate"
+            or route.selected_agents
+        ):
+            raise RouteValidationError(
+                "supervisor_planner_agent and report_critic_agent are reserved for the primary "
+                "Investigator agentic route."
+            )
 
         allowed = ROLE_AGENT_PERMISSIONS[route.role]
         if route.task_type == "full_intelligence_report" and not route.selected_agents:

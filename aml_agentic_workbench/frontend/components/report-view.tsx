@@ -5,9 +5,11 @@ import Link from "next/link";
 import type {
   AgentOutput,
   AnalysisResponse,
+  CriticReview,
   DetectionCandidatePackage,
   InvestigationCaseReview,
   ModelResults,
+  PlannerDecision,
   ReportDetailResponse
 } from "@/types/api";
 import { agents } from "@/lib/catalog";
@@ -46,6 +48,26 @@ function getModelResults(report: ReportLike): ModelResults | undefined {
   return report.model_results;
 }
 
+function getPlannerDecisions(report: ReportLike): PlannerDecision[] {
+  if ("result" in report) return report.result.planner_decisions ?? [];
+  return report.planner_decisions ?? [];
+}
+
+function getCriticReviews(report: ReportLike): CriticReview[] {
+  if ("result" in report) return report.result.critic_reviews ?? [];
+  return report.critic_reviews ?? [];
+}
+
+function getStopReason(report: ReportLike): string | null | undefined {
+  if ("result" in report) return report.result.stop_reason;
+  return report.stop_reason;
+}
+
+function getRefinementRounds(report: ReportLike): number {
+  if ("result" in report) return report.result.refinement_rounds ?? 0;
+  return report.refinement_rounds ?? 0;
+}
+
 export function ReportView({ report }: { report: ReportLike }) {
   const agentOutputs = getAgentOutputs(report);
   const finalReport = getFinalReport(report);
@@ -55,6 +77,8 @@ export function ReportView({ report }: { report: ReportLike }) {
   const candidatePackages = getCandidatePackages(report);
   const investigationCaseReview = getInvestigationCaseReview(report);
   const modelResults = getModelResults(report);
+  const plannerDecisions = getPlannerDecisions(report);
+  const criticReviews = getCriticReviews(report);
 
   if (modelResults) {
     return (
@@ -111,6 +135,12 @@ export function ReportView({ report }: { report: ReportLike }) {
             <ReadableMarkdown text={finalReport} />
           </Card>
           <div className="grid content-start gap-6">
+            <DecisionRefinementPanel
+              decisions={plannerDecisions}
+              criticReviews={criticReviews}
+              stopReason={getStopReason(report)}
+              refinementRounds={getRefinementRounds(report)}
+            />
             <CandidatePackagePanel packages={candidatePackages} />
             <InvestigationFeedbackPanel review={investigationCaseReview} />
             <AgentSummary outputs={agentOutputs} />
@@ -220,6 +250,52 @@ function DataScientistModelResults({
       <AgentSummary outputs={agentOutputs} />
       <AuditPanel events={auditTrace} />
     </div>
+  );
+}
+
+function DecisionRefinementPanel({
+  decisions,
+  criticReviews,
+  stopReason,
+  refinementRounds
+}: {
+  decisions: PlannerDecision[];
+  criticReviews: CriticReview[];
+  stopReason?: string | null;
+  refinementRounds: number;
+}) {
+  if (decisions.length === 0 && criticReviews.length === 0 && !stopReason && refinementRounds === 0) return null;
+  const latestReview = criticReviews[criticReviews.length - 1];
+  return (
+    <Card>
+      <h2 className="text-lg font-semibold text-ink">Decision & Refinement</h2>
+      <div className="mt-4 grid gap-2 text-sm">
+        <FeedbackLine label="Stop reason" value={stopReason || "Planner finalized evidence gathering"} />
+        <FeedbackLine label="Refinements" value={String(refinementRounds)} />
+        {latestReview && <FeedbackLine label="Critic status" value={formatLabel(latestReview.status)} />}
+      </div>
+      {decisions.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs font-semibold uppercase text-slate-500">Planner decisions</div>
+          <div className="mt-2 grid gap-2">
+            {decisions.slice(-4).map((decision, index) => (
+              <div key={`${decision.next_action}-${index}`} className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+                <div className="font-semibold text-ink">{formatLabel(String(decision.next_action))}</div>
+                <p className="mt-1 leading-6 text-slate-600">{decision.reason}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {latestReview?.issues && latestReview.issues.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs font-semibold uppercase text-slate-500">Critic feedback</div>
+          <ul className="mt-2 grid gap-1 text-sm text-slate-600">
+            {latestReview.issues.slice(0, 3).map((issue) => <li key={issue}>- {issue}</li>)}
+          </ul>
+        </div>
+      )}
+    </Card>
   );
 }
 

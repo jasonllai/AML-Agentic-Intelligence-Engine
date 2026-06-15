@@ -20,7 +20,18 @@ class FaithfulnessJudge(BaseJudge):
         if "confirmed" in lower and "evidence is insufficient" not in lower:
             issues.append("Output uses confirmation language that may exceed available evidence.")
         severity = JudgeSeverity.MEDIUM if issues else JudgeSeverity.LOW
-        score = 0.55 if issues else 0.86
+        if issues:
+            score = 0.55
+        else:
+            agent_outputs = context.get("agent_outputs") or {}
+            score = 0.72
+            score += 0.06 if context.get("transactions") else 0.0
+            score += 0.04 if context.get("model_outputs") else 0.0
+            score += 0.05 if context.get("documents") or context.get("citations") else 0.0
+            score += 0.05 if len(agent_outputs) >= 3 else 0.02 if agent_outputs else 0.0
+            score += 0.04 if "evidence table" in lower else 0.0
+            score += 0.04 if "limitations and uncertainty" in lower or "evidence is insufficient" in lower else 0.0
+            score = self._bounded_score(score)
         return self._decision(
             score=score,
             issues=issues,
@@ -28,4 +39,3 @@ class FaithfulnessJudge(BaseJudge):
             recommended_fix="Tie each material claim to transaction data, model outputs, or retrieved documents.",
             severity=severity,
         )
-

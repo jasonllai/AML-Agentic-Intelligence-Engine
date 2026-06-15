@@ -2,7 +2,7 @@
 
 A governed, self-evaluating multi-agent AML intelligence platform designed to help bank AML data science teams understand customer transaction behaviour, explain model outputs, map suspicious patterns to FINTRAC typologies, and identify potential feature gaps.
 
-This repository currently contains the production-oriented backend foundation: FastAPI routes, typed schemas, role-aware routing placeholders, LangGraph-compatible state, persistence models, secure internal tool abstractions, synthetic AML sample data, service abstractions, Docker Compose infrastructure, and tests.
+This repository currently contains the production-oriented backend foundation: FastAPI routes, typed schemas, role-aware routing, LangGraph-compatible state, persistence models, secure internal tool abstractions, real-data service abstractions, Docker Compose infrastructure, and tests.
 
 ## Structure
 
@@ -20,9 +20,12 @@ aml_agentic_workbench/
       storage/
       tests/
       tools/
-    data/sample/
     Dockerfile
     pyproject.toml
+artifacts/
+  models/
+  rag/
+real_data/
 docker-compose.yml
 .env.example
 ```
@@ -106,7 +109,8 @@ The frontend includes role selection, dynamic route preview, analysis execution,
 - No real LLM calls are implemented yet. Agent execution is stubbed behind clean routing and graph interfaces.
 - Internal tools are registered, typed, allowlisted, role-scoped, audited, and executed with timeout/error handling. There is no arbitrary code or shell execution tool.
 - Agents use a provider-neutral `LLMClient` abstraction. If `OPENAI_API_KEY` is unset, the backend runs with deterministic mock LLM outputs. If set, it can call an OpenAI-compatible `/chat/completions` endpoint through environment configuration.
-- Local sample data is synthetic and lives under `aml_agentic_workbench/backend/data/sample`.
+- Customer transaction and KYC data is read from `real_data`; model feature summaries are read from `artifacts/models/customer_features.csv`.
+- Local keyword RAG fallback reads official-source chunks from `artifacts/rag/chunks.jsonl`.
 - Configuration is environment-driven through `pydantic-settings`.
 - PostgreSQL models are defined with SQLAlchemy 2.0 and use `JSONB` for extensible run, report, audit, and judge metadata.
 - Docker Compose uses `pgvector/pgvector:pg16` as the default PostgreSQL image to support future vector retrieval.

@@ -4,6 +4,8 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 
+REAL_CUSTOMER_ID = "SYNID0100000167"
+
 
 def test_health_endpoint_returns_ok() -> None:
     """Health endpoint should return service liveness metadata."""
@@ -78,7 +80,7 @@ def test_analysis_endpoint_executes_dynamic_route() -> None:
         json={
             "role": "investigator",
             "task_type": "investigator_summary",
-            "customer_id": "CUST003",
+            "customer_id": REAL_CUSTOMER_ID,
             "query": "Summarize velocity spike and new counterparty burst.",
             "selected_agents": ["transaction_behaviour_agent"],
         },
@@ -103,7 +105,7 @@ def test_analysis_endpoint_returns_service_unavailable_when_pgvector_is_missing(
         json={
             "role": "investigator",
             "task_type": "investigator_summary",
-            "customer_id": "CUST003",
+            "customer_id": REAL_CUSTOMER_ID,
             "query": "Map velocity spike to typology indicators.",
             "selected_agents": ["typology_mapping_agent"],
         },
@@ -111,6 +113,24 @@ def test_analysis_endpoint_returns_service_unavailable_when_pgvector_is_missing(
 
     assert response.status_code == 503
     assert "ingest_pgvector" in response.json()["detail"]
+
+
+def test_investigator_analysis_rejects_customer_absent_from_real_data() -> None:
+    """Investigator runs must fail closed when the customer is absent from real data."""
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/v1/analysis",
+        json={
+            "role": "investigator",
+            "task_type": "investigator_summary",
+            "customer_id": "CUST003",
+            "query": "Summarize this customer.",
+            "selected_agents": ["transaction_behaviour_agent"],
+        },
+    )
+
+    assert response.status_code == 404
+    assert "not found in real customer data" in response.json()["detail"]
 
 
 def test_analysis_endpoint_blocks_unauthorized_selected_agent() -> None:

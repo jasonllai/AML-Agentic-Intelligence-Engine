@@ -27,7 +27,7 @@ def test_new_primary_tasks_are_supported_by_request_schema() -> None:
     investigator_request = AnalysisRequest(
         role=SupportedRole.INVESTIGATOR,
         task_type="investigate_model_prioritized_candidate",
-        customer_id="CUST003",
+        customer_id="SYNID0100000167",
         query="Investigate this model-prioritized candidate.",
     )
 
@@ -67,7 +67,7 @@ def test_candidate_package_requires_model_prioritization_disclaimer() -> None:
     """Candidate packages must prevent investigators from treating model scores as proof."""
     package = DetectionCandidatePackage(
         candidate_id="cand-001",
-        customer_id="CUST003",
+        customer_id="SYNID0100000167",
         model_run_id="run-001",
         model_version="isolation_forest_v1",
         model_family="isolation_forest",
@@ -105,4 +105,3 @@ def test_investigator_feedback_captures_case_outcome_for_model_learning() -> Non
 
     assert feedback.case_disposition == "monitor"
     assert feedback.label_for_model_evaluation == "needs_review"
-

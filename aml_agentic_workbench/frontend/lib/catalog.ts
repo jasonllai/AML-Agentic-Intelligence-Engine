@@ -31,7 +31,7 @@ export const roles: Record<
     tasks: ["Investigate model-prioritized candidate"],
     reportStyle: "Evidence review, careful typology mapping, disposition, and model feedback.",
     defaultTask: "investigate_model_prioritized_candidate",
-    defaultCustomerId: "CUST003",
+    defaultCustomerId: "SYNID0100000167",
     defaultQuery: "Investigate this model-prioritized candidate and return case feedback.",
     actions: ["investigate_model_prioritized_candidate"]
   },
@@ -101,10 +101,20 @@ export const agents: Record<AgentName, { label: string; why: string; sections: s
     why: "Critiques feature quality, leakage risk, and PySpark feature opportunities.",
     sections: ["Feature Quality Review"]
   },
+  supervisor_planner_agent: {
+    label: "Supervisor Planner",
+    why: "Chooses the next bounded investigation action based on gathered and missing evidence.",
+    sections: ["Planner Decisions", "Missing Evidence"]
+  },
   evidence_assembly_agent: {
     label: "Evidence Assembly",
     why: "Builds the governed report from only the agents that actually ran.",
     sections: ["Executive Summary", "Limitations and Uncertainty", "Recommended Analytical Next Steps"]
+  },
+  report_critic_agent: {
+    label: "Report Critic",
+    why: "Reviews the draft report once and requests refinement only when it improves auditability.",
+    sections: ["Critic Review", "Refinement Instruction"]
   },
   judge_panel_agent: {
     label: "Judge Panel",
@@ -124,10 +134,12 @@ export function defaultRoute(role: SupportedRole, task: TaskType): AgentName[] {
   }
   if (role === "investigator" && task === "investigate_model_prioritized_candidate") {
     return [
+      "supervisor_planner_agent",
       "transaction_behaviour_agent",
       "typology_mapping_agent",
       "case_investigation_agent",
       "evidence_assembly_agent",
+      "report_critic_agent",
       "judge_panel_agent",
       "guardrail_agent"
     ];

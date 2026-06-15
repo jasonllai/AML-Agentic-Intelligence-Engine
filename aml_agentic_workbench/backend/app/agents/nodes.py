@@ -10,6 +10,8 @@ from app.agents.router import (
     GUARDRAIL_AGENT,
     JUDGE_PANEL_AGENT,
     MODEL_EXPLANATION_AGENT,
+    REPORT_CRITIC_AGENT,
+    SUPERVISOR_PLANNER_AGENT,
     TRANSACTION_BEHAVIOUR_AGENT,
     TYPOLOGY_MAPPING_AGENT,
 )
@@ -18,10 +20,12 @@ from app.evaluation.judge_panel import JudgePanel
 from app.llm.client import LLMClient, get_llm_client
 from app.llm.prompts import render_prompt
 from app.llm.schemas import (
+    CriticReviewOutput,
     EvidenceAssemblyOutput,
     FeatureCriticOutput,
     GuardrailReviewOutput,
     ModelExplanationOutput,
+    PlannerDecisionOutput,
     TransactionBehaviourOutput,
     TypologyMappingOutput,
 )
@@ -52,7 +56,9 @@ def make_agent_nodes(
         FEATURE_CRITIC_AGENT: feature_critic_agent(service, client, scorer),
         CANDIDATE_RANKING_AGENT: candidate_ranking_agent(service, scorer, client),
         CASE_INVESTIGATION_AGENT: case_investigation_agent(service, scorer),
+        SUPERVISOR_PLANNER_AGENT: supervisor_planner_agent(client),
         EVIDENCE_ASSEMBLY_AGENT: evidence_assembly_agent(client),
+        REPORT_CRITIC_AGENT: report_critic_agent(client),
         JUDGE_PANEL_AGENT: judge_panel_agent(client),
         GUARDRAIL_AGENT: guardrail_agent(client),
     }
@@ -252,6 +258,48 @@ def case_investigation_agent(data_service: DataService, model_service: ModelServ
     return node
 
 
+def supervisor_planner_agent(llm_client: LLMClient) -> AgentNode:
+    """Build a node that proposes the next bounded investigator evidence action."""
+
+    def node(state: AMLAgentState) -> AMLAgentState:
+        completed_agents = [
+            agent
+            for agent in state.get("executed_agents", [])
+            if agent in {TRANSACTION_BEHAVIOUR_AGENT, TYPOLOGY_MAPPING_AGENT, CASE_INVESTIGATION_AGENT}
+        ]
+        inputs = {
+            "allowed_actions": [
+                TRANSACTION_BEHAVIOUR_AGENT,
+                TYPOLOGY_MAPPING_AGENT,
+                CASE_INVESTIGATION_AGENT,
+                "finalize_report",
+            ],
+            "completed_agents": completed_agents,
+            "agent_outputs": {
+                agent: state.get("agent_outputs", {}).get(agent, {}) for agent in completed_agents
+            },
+            "planner_decisions_so_far": state.get("planner_decisions", []),
+        }
+        prompt = render_prompt(SUPERVISOR_PLANNER_AGENT, state["role"], state["query"], inputs)
+        output = llm_client.generate_structured(prompt, PlannerDecisionOutput)
+        decision = output.model_dump(mode="json")
+        state["planner_decisions"] = [*state.get("planner_decisions", []), decision]
+        if output.stop_reason:
+            state["stop_reason"] = output.stop_reason
+        state["audit_trace"] = [
+            *state.get("audit_trace", []),
+            {
+                "event": "planner_decision",
+                "agent": SUPERVISOR_PLANNER_AGENT,
+                "next_action": output.next_action,
+                "confidence": round(output.confidence, 2),
+            },
+        ]
+        return state
+
+    return node
+
+
 def evidence_assembly_agent(llm_client: LLMClient) -> AgentNode:
     """Build a node that assembles role/task-adapted final report sections."""
 
@@ -262,6 +310,8 @@ def evidence_assembly_agent(llm_client: LLMClient) -> AgentNode:
             "task_type": state["task_type"],
             "executed_agents": state.get("executed_agents", []),
             "agent_outputs": prior_outputs,
+            "critic_reviews": state.get("critic_reviews", []),
+            "refinement_rounds": state.get("refinement_rounds", 0),
         }
         prompt = render_prompt(EVIDENCE_ASSEMBLY_AGENT, state["role"], state["query"], inputs)
         output = llm_client.generate_structured(prompt, EvidenceAssemblyOutput)
@@ -276,6 +326,40 @@ def evidence_assembly_agent(llm_client: LLMClient) -> AgentNode:
             limitations=output.limitations_and_uncertainty,
             confidence=0.8 if prior_outputs else 0.45,
             structured_output={**output.model_dump(mode="json"), "report_markdown": report_markdown},
+        )
+
+    return node
+
+
+def report_critic_agent(llm_client: LLMClient) -> AgentNode:
+    """Build a node that critiques the draft report before final governance."""
+
+    def node(state: AMLAgentState) -> AMLAgentState:
+        inputs = {
+            "final_report": state.get("final_report"),
+            "agent_outputs": state.get("agent_outputs", {}),
+            "planner_decisions": state.get("planner_decisions", []),
+            "refinement_rounds": state.get("refinement_rounds", 0),
+        }
+        prompt = render_prompt(REPORT_CRITIC_AGENT, state["role"], state["query"], inputs)
+        output = llm_client.generate_structured(prompt, CriticReviewOutput)
+        review = output.model_dump(mode="json")
+        state["critic_reviews"] = [*state.get("critic_reviews", []), review]
+        return _record_agent_output(
+            state,
+            REPORT_CRITIC_AGENT,
+            summary=f"Critic review completed with status: {output.status}.",
+            findings=output.issues or ["No material refinement issue found."],
+            evidence=[
+                {
+                    "target_section": output.target_section,
+                    "refinement_instruction": output.refinement_instruction,
+                    "must_refine": output.must_refine,
+                }
+            ],
+            limitations=["Critic refinement is bounded to one pass before final governance."],
+            confidence=output.confidence,
+            structured_output=review,
         )
 
     return node
@@ -385,7 +469,7 @@ def _compose_fallback_final_report(state: AMLAgentState, flags: list[str]) -> st
         f"Route: {route}",
         f"Guardrail status: {'flagged' if flags else 'passed'}",
         "## Limitations and Uncertainty",
-        "This report was generated from routed agent outputs and synthetic sample data.",
+        "This report was generated from routed agent outputs and available real-data evidence.",
     ]
     for agent, output in state.get("agent_outputs", {}).items():
         if agent != GUARDRAIL_AGENT:

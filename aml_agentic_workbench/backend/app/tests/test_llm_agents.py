@@ -64,7 +64,7 @@ def test_transaction_behaviour_agent_returns_valid_schema() -> None:
         role=SupportedRole.INVESTIGATOR,
         task_type="investigator_summary",
         query="Review velocity and counterparties.",
-        customer_id="CUST003",
+        customer_id="SYNID0100000167",
     )
 
     final_state = nodes[TRANSACTION_BEHAVIOUR_AGENT](state)
@@ -100,7 +100,7 @@ def test_model_agent_uses_model_service_not_precomputed_outputs() -> None:
         role=SupportedRole.MODEL_VALIDATOR,
         task_type="model_validation_review",
         query="Explain model score uncertainty.",
-        customer_id="CUST003",
+        customer_id="SYNID0100000167",
     )
 
     final_state = nodes[MODEL_EXPLANATION_AGENT](state)
@@ -132,7 +132,7 @@ def test_typology_agent_requires_citations_and_careful_language() -> None:
         role=SupportedRole.INVESTIGATOR,
         task_type="investigator_summary",
         query="Map velocity spike to typology indicators.",
-        customer_id="CUST003",
+        customer_id="SYNID0100000167",
     )
     state = nodes[TRANSACTION_BEHAVIOUR_AGENT](state)
 
@@ -151,7 +151,7 @@ def test_feature_critic_returns_valid_feature_suggestions() -> None:
         role=SupportedRole.DATA_SCIENTIST,
         task_type="feature_quality_review",
         query="Critique features and suggest PySpark features.",
-        customer_id="CUST006",
+        customer_id="SYNID0100000431",
     )
 
     final_state = nodes[FEATURE_CRITIC_AGENT](state)
@@ -171,7 +171,7 @@ def test_evidence_assembly_adapts_to_partial_agent_route() -> None:
         role=SupportedRole.INVESTIGATOR,
         task_type="investigator_summary",
         query="Summarize behaviour only.",
-        customer_id="CUST003",
+        customer_id="SYNID0100000167",
         route=[TRANSACTION_BEHAVIOUR_AGENT, EVIDENCE_ASSEMBLY_AGENT, GUARDRAIL_AGENT],
     )
     state = nodes[TRANSACTION_BEHAVIOUR_AGENT](state)

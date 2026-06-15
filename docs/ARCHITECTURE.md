@@ -56,12 +56,15 @@ aml_agentic_workbench/
       storage/       SQLAlchemy ORM models and repository wrappers
       tests/         Backend test suite
       tools/         MCP-style internal tool interfaces and registry
-    data/sample/     Synthetic AML data and JSONL knowledge base
   frontend/
     app/             Next.js pages
     components/      Shell, report view, route preview, UI primitives
     lib/             API wrapper, route catalog, utilities
     types/           TypeScript API types
+artifacts/
+  models/            Trained model artifacts and customer feature matrix
+  rag/               Official-source local RAG artifacts
+real_data/           Customer transaction, KYC, and label CSV inputs
 docker-compose.yml
 README.md
 docs/
@@ -444,7 +447,7 @@ Active implementation:
 Offline/test utility implementation:
 
 - `SemanticKnowledgeRetriever` still loads `artifacts/rag/chunks.jsonl`, `vectorizer.joblib`, and `embeddings.index` for unit tests and local artifact experiments.
-- `LocalKeywordRetriever` still reads `data/sample/aml_knowledge_base.jsonl` for explicit tests and fixtures.
+- `LocalKeywordRetriever` reads `artifacts/rag/chunks.jsonl` for explicit tests, fixtures, and primary Investigator fallback when pgvector is unavailable.
 - These are no longer the default runtime path.
 
 Compatibility implementation:

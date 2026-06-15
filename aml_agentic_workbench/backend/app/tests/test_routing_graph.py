@@ -6,6 +6,8 @@ from app.agents.graph import DynamicGraphBuilder
 from app.agents.nodes import make_agent_nodes
 from app.agents.router import (
     GUARDRAIL_AGENT,
+    REPORT_CRITIC_AGENT,
+    SUPERVISOR_PLANNER_AGENT,
     TRANSACTION_BEHAVIOUR_AGENT,
     RoleAwareRouter,
     RouteValidationError,
@@ -77,6 +79,24 @@ def test_invalid_agent_selection_is_blocked() -> None:
         )
 
 
+def test_agentic_control_agents_cannot_be_selected_directly() -> None:
+    """Planner and critic agents should only run inside the bounded primary Investigator route."""
+    with pytest.raises(RouteValidationError):
+        RoleAwareRouter().route(
+            role=SupportedRole.INVESTIGATOR,
+            task_type="investigate_model_prioritized_candidate",
+            query="Run only the planner.",
+            selected_agents=[SUPERVISOR_PLANNER_AGENT],
+        )
+    with pytest.raises(RouteValidationError):
+        RoleAwareRouter().route(
+            role=SupportedRole.INVESTIGATOR,
+            task_type="investigator_summary",
+            query="Critique a summary.",
+            selected_agents=[REPORT_CRITIC_AGENT],
+        )
+
+
 def test_graph_produces_final_report_for_dynamic_route() -> None:
     """Dynamic graph execution should produce a final report and executed agent list."""
     router = RoleAwareRouter()
@@ -90,7 +110,7 @@ def test_graph_produces_final_report_for_dynamic_route() -> None:
         role=SupportedRole.INVESTIGATOR,
         task_type="investigator_summary",
         query="Assess velocity spike and new counterparty burst.",
-        customer_id="CUST003",
+        customer_id="SYNID0100000167",
         route=route.agents,
         route_explanation=route.explanation,
     )

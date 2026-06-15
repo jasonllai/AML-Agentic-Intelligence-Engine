@@ -71,7 +71,7 @@ def test_tool_invocation_audits_success() -> None:
     output = registry.invoke(
         "get_customer_transactions",
         SupportedRole.INVESTIGATOR,
-        {"customer_id": "CUST003", "limit": 2},
+        {"customer_id": "SYNID0100000167", "limit": 2},
         actor="analyst-1",
         request_id="req-1",
     )

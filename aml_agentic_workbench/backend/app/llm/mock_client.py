@@ -8,11 +8,13 @@ from app.llm.client import LLMClient
 from app.llm.schemas import (
     CandidateExplanationOutput,
     Citation,
+    CriticReviewOutput,
     EvidenceAssemblyOutput,
     FeatureCriticOutput,
     GuardrailReviewOutput,
     JudgePanelOutput,
     ModelExplanationOutput,
+    PlannerDecisionOutput,
     RecommendedPySparkFeature,
     TransactionBehaviourOutput,
     TypologyMappingOutput,
@@ -150,6 +152,32 @@ class MockLLMClient(LLMClient):
                 ],
                 "validation_tests": ["Population stability index by month", "Null-rate drift by segment"],
             }
+        if response_schema is PlannerDecisionOutput:
+            completed_segment = prompt.split('"completed_agents":', 1)[1].split("]", 1)[0]
+            if "transaction_behaviour_agent" not in completed_segment:
+                next_action = "transaction_behaviour_agent"
+                reason = "No transaction behaviour evidence has been recorded yet."
+                missing_evidence = ["customer transaction behaviour"]
+            elif "typology_mapping_agent" not in completed_segment:
+                next_action = "typology_mapping_agent"
+                reason = "Transaction behaviour is available, so typology context should be checked next."
+                missing_evidence = ["typology mapping"]
+            elif "case_investigation_agent" not in completed_segment:
+                next_action = "case_investigation_agent"
+                reason = "Behaviour and typology context are available; case disposition evidence is still missing."
+                missing_evidence = ["case investigation feedback"]
+            else:
+                next_action = "finalize_report"
+                reason = "Required investigator evidence has been gathered and the draft can be assembled."
+                missing_evidence = []
+            return {
+                "next_action": next_action,
+                "reason": reason,
+                "evidence_checked": ["completed agent outputs in state"],
+                "missing_evidence": missing_evidence,
+                "stop_reason": reason if next_action == "finalize_report" else None,
+                "confidence": 0.84,
+            }
         if response_schema is EvidenceAssemblyOutput:
             return {
                 "report_markdown": (
@@ -167,6 +195,23 @@ class MockLLMClient(LLMClient):
                 "evidence_table": [{"agent": "mock", "evidence": "schema-valid evidence"}],
                 "limitations_and_uncertainty": ["Synthetic data only.", "No real LLM provider configured."],
                 "recommended_next_steps": ["Review source transactions.", "Validate feature stability."],
+            }
+        if response_schema is CriticReviewOutput:
+            return {
+                "status": "needs_refinement",
+                "issues": [
+                    (
+                        "Draft should explicitly connect the investigator case review to the typology and "
+                        "behaviour evidence."
+                    )
+                ],
+                "target_section": "Investigator Case Review",
+                "refinement_instruction": (
+                    "Strengthen the case review section by tying disposition feedback back to evidence already "
+                    "gathered."
+                ),
+                "must_refine": True,
+                "confidence": 0.81,
             }
         if response_schema is JudgePanelOutput:
             return {

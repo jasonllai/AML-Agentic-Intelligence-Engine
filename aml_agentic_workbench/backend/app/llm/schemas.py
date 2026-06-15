@@ -114,6 +114,17 @@ class FeatureCriticOutput(BaseModel):
     validation_tests: list[str] = Field(default_factory=list)
 
 
+class PlannerDecisionOutput(BaseModel):
+    """Structured supervisor planner decision for the investigator loop."""
+
+    next_action: str
+    reason: str
+    evidence_checked: list[str] = Field(default_factory=list)
+    missing_evidence: list[str] = Field(default_factory=list)
+    stop_reason: str | None = None
+    confidence: float = Field(..., ge=0.0, le=1.0)
+
+
 class EvidenceAssemblyOutput(BaseModel):
     """Structured final report output."""
 
@@ -122,6 +133,17 @@ class EvidenceAssemblyOutput(BaseModel):
     evidence_table: list[dict[str, Any]] = Field(default_factory=list)
     limitations_and_uncertainty: list[str] = Field(default_factory=list)
     recommended_next_steps: list[str] = Field(default_factory=list)
+
+
+class CriticReviewOutput(BaseModel):
+    """Structured self-correction review of an investigator draft report."""
+
+    status: str
+    issues: list[str] = Field(default_factory=list)
+    target_section: str | None = None
+    refinement_instruction: str | None = None
+    must_refine: bool = False
+    confidence: float = Field(..., ge=0.0, le=1.0)
 
 
 class JudgePanelOutput(BaseModel):

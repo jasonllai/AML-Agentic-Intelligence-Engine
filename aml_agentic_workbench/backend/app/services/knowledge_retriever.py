@@ -7,10 +7,10 @@ from collections import Counter
 from functools import lru_cache
 from pathlib import Path
 
+from app.core.config import get_settings
 from app.rag.ingest import CHUNKS_FILENAME, EMBEDDINGS_FILENAME, VECTORIZER_FILENAME, LocalTfidfVectorizer
 from app.rag.pgvector_store import PgVectorKnowledgeRetriever
 from app.schemas.knowledge import KnowledgeDocument, ScoredKnowledgeDocument
-from app.services.data_service import default_sample_data_dir
 from app.services.database import engine
 
 
@@ -26,7 +26,8 @@ class LocalKeywordRetriever(KnowledgeRetriever):
     """Simple deterministic keyword retriever over local JSONL documents."""
 
     def __init__(self, path: Path | None = None) -> None:
-        self.path = path or default_sample_data_dir() / "aml_knowledge_base.jsonl"
+        artifact_dir = _resolve_artifact_dir(Path(get_settings().rag_artifact_dir))
+        self.path = path or artifact_dir / CHUNKS_FILENAME
         self._documents = self._load_documents(self.path)
 
     def search(self, query: str, limit: int = 3) -> list[ScoredKnowledgeDocument]:

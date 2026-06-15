@@ -10,7 +10,8 @@ def test_keyword_retriever_returns_relevant_documents() -> None:
     documents = retriever.search("round amount cash structuring threshold", limit=2)
 
     assert documents
-    assert documents[0].doc_id == "KB003"
+    assert documents[0].doc_id.startswith("fintrac_financial_entity_indicators:")
+    assert documents[0].url
     assert documents[0].score > 0
 
 

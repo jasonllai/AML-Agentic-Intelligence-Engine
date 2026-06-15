@@ -19,7 +19,9 @@ export type AgentName =
   | "model_explanation_agent"
   | "typology_mapping_agent"
   | "feature_critic_agent"
+  | "supervisor_planner_agent"
   | "evidence_assembly_agent"
+  | "report_critic_agent"
   | "guardrail_agent"
   | "judge_panel_agent";
 
@@ -101,6 +103,10 @@ export interface AnalysisResponse {
     model_results?: ModelResults;
     candidate_packages?: DetectionCandidatePackage[];
     investigation_case_review?: InvestigationCaseReview | null;
+    planner_decisions?: PlannerDecision[];
+    critic_reviews?: CriticReview[];
+    stop_reason?: string | null;
+    refinement_rounds?: number;
     agent_outputs?: Record<string, AgentOutput>;
     audit_trace?: AuditTraceItem[];
     judge_panel?: unknown;
@@ -109,6 +115,43 @@ export interface AnalysisResponse {
   guardrail_status: string;
   judge_scores?: Record<string, number>;
   route_explanation?: string;
+}
+
+export interface PlannerDecision {
+  next_action: AgentName | "finalize_report" | string;
+  reason: string;
+  evidence_checked: string[];
+  missing_evidence: string[];
+  stop_reason?: string | null;
+  confidence: number;
+  policy_override?: boolean;
+}
+
+export interface CriticReview {
+  status: string;
+  issues: string[];
+  target_section?: string | null;
+  refinement_instruction?: string | null;
+  must_refine: boolean;
+  confidence: number;
+}
+
+export interface AnalysisStreamEvent {
+  event: string;
+  route?: AgentName[];
+  agent?: AgentName;
+  decision?: PlannerDecision;
+  review?: CriticReview;
+  output?: AgentOutput;
+  instruction?: string | null;
+  refinement_rounds?: number;
+  response?: AnalysisResponse;
+  message?: string;
+}
+
+export interface AnalysisStreamHandlers {
+  onEvent?: (event: AnalysisStreamEvent) => void;
+  onComplete?: (response: AnalysisResponse) => void;
 }
 
 export interface AgentOutput {
@@ -253,6 +296,10 @@ export interface ReportDetailResponse {
   model_results?: ModelResults;
   candidate_packages?: DetectionCandidatePackage[];
   investigation_case_review?: InvestigationCaseReview | null;
+  planner_decisions?: PlannerDecision[];
+  critic_reviews?: CriticReview[];
+  stop_reason?: string | null;
+  refinement_rounds?: number;
   executed_agents: AgentName[];
   judge_scores?: Record<string, number> | null;
   route_explanation?: string | null;

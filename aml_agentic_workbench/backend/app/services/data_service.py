@@ -1,4 +1,4 @@
-"""Local AML data access service backed by synthetic sample files."""
+"""Local AML data access service backed by real-data files."""
 
 from functools import lru_cache
 from pathlib import Path
@@ -24,14 +24,10 @@ class DataService:
         real_data_dir: Path | None = None,
         model_feature_artifact: Path | None = None,
     ) -> None:
-        self.data_dir = data_dir or default_sample_data_dir()
+        self.data_dir = data_dir
         self.real_data_dir = real_data_dir or _resolve_repo_path(Path(get_settings().real_data_dir))
         model_artifact_dir = _resolve_repo_path(Path(get_settings().model_artifact_dir))
         self.model_feature_artifact = model_feature_artifact or model_artifact_dir / "customer_features.csv"
-        self._customers = self._load_csv("customers.csv")
-        self._transactions = self._load_csv("transactions.csv")
-        self._features = self._load_csv("customer_features.csv")
-        self._model_outputs = self._load_csv("model_outputs.csv")
         self._customer_data_sources = {
             "abm": "transaction",
             "card": "transaction",
@@ -47,76 +43,78 @@ class DataService:
 
     def get_transactions(self, customer_id: str, limit: int | None = None) -> list[dict[str, Any]]:
         """Return transactions for a customer ordered by timestamp."""
-        rows = self._transactions[self._transactions["customer_id"] == customer_id].sort_values("timestamp")
-        if rows.empty:
-            real_rows = self._get_real_transactions(customer_id, limit=limit)
-            if real_rows:
-                return real_rows
-        if limit is not None:
-            rows = rows.head(limit)
-        return self._records(rows)
+        return self._get_real_transactions(customer_id, limit=limit)
 
     def get_feature_summary(self, customer_id: str) -> dict[str, Any]:
         """Return engineered feature summary for a customer."""
-        rows = self._features[self._features["customer_id"] == customer_id]
-        if rows.empty:
-            real_summary = self._get_real_feature_summary(customer_id)
-            if real_summary:
-                return real_summary
-            raise ValueError(f"No customer_features record found for customer_id '{customer_id}'.")
-        row = rows.iloc[0].to_dict()
-        result = self._clean_record(row)
-        result["top_features"] = self._split_pipe_list(str(result.get("top_features", "")))
-        return result
+        real_summary = self._get_real_feature_summary(customer_id)
+        if real_summary:
+            return real_summary
+        raise ValueError(f"No customer_features record found for customer_id '{customer_id}'.")
 
     def get_model_outputs(self, customer_id: str) -> dict[str, Any]:
         """Return model outputs for a customer."""
-        row = self._single_row(self._model_outputs, customer_id, "model_outputs")
-        result = self._clean_record(row)
-        result["top_features"] = self._split_pipe_list(str(result.get("top_features", "")))
-        return result
+        feature_summary = self.get_feature_summary(customer_id)
+        return {
+            "customer_id": customer_id,
+            "model_version": "score_via_model_service",
+            "risk_score": None,
+            "anomaly_score": None,
+            "alert_recommendation": "score_via_model_service",
+            "top_features": feature_summary.get("top_features", []),
+            "feature_summary": feature_summary,
+        }
 
     def get_network_summary(self, customer_id: str) -> dict[str, Any]:
         """Summarize counterparty network concentration for a customer."""
-        transactions = self._transactions[self._transactions["customer_id"] == customer_id]
+        transactions = pd.DataFrame(self._get_real_transactions(customer_id))
         if transactions.empty:
-            real_transactions = pd.DataFrame(self._get_real_transactions(customer_id))
-            if real_transactions.empty:
-                raise ValueError(f"No transactions found for customer_id '{customer_id}'.")
-            country_series = real_transactions.get("country", pd.Series(dtype=str))
-            cross_border_series = real_transactions.get("is_cross_border", pd.Series(dtype=int))
-            return {
-                "transaction_count": int(len(real_transactions)),
-                "unique_counterparties": 0,
-                "top_counterparty_id": None,
-                "top_counterparty_transaction_count": 0,
-                "counterparty_concentration_ratio": 0.0,
-                "counterparty_countries": country_series.value_counts().to_dict(),
-                "cross_border_transaction_count": int(cross_border_series.sum()),
-                "cross_border_ratio": round(float(cross_border_series.mean()), 4),
-                "total_amount": float(real_transactions["amount"].sum()),
-                "average_amount": round(float(real_transactions["amount"].mean()), 2),
-            }
+            raise ValueError(f"No transactions found for customer_id '{customer_id}'.")
 
-        counterparty_counts = transactions["counterparty_id"].value_counts()
-        country_counts = transactions["counterparty_country"].value_counts()
+        channel_counts = transactions["channel"].value_counts()
+        country_series = transactions.get("counterparty_country", pd.Series(dtype=str))
+        cross_border_series = transactions.get("is_cross_border", pd.Series(dtype=int)).astype(int)
         total = int(len(transactions))
-        cross_border = int(transactions["is_cross_border"].astype(bool).sum())
-        top_counterparty_count = int(counterparty_counts.iloc[0]) if not counterparty_counts.empty else 0
-        concentration_ratio = round(top_counterparty_count / total, 4) if total else 0.0
+        top_channel_count = int(channel_counts.iloc[0]) if not channel_counts.empty else 0
 
         return {
             "transaction_count": total,
-            "unique_counterparties": int(transactions["counterparty_id"].nunique()),
-            "top_counterparty_id": str(counterparty_counts.index[0]) if not counterparty_counts.empty else None,
-            "top_counterparty_transaction_count": top_counterparty_count,
-            "counterparty_concentration_ratio": concentration_ratio,
-            "counterparty_countries": country_counts.to_dict(),
-            "cross_border_transaction_count": cross_border,
-            "cross_border_ratio": round(cross_border / total, 4) if total else 0.0,
+            "unique_counterparties": 0,
+            "top_counterparty_id": None,
+            "top_counterparty_transaction_count": 0,
+            "counterparty_concentration_ratio": 0.0,
+            "counterparty_countries": country_series.value_counts().to_dict(),
+            "channel_counts": channel_counts.to_dict(),
+            "top_channel": str(channel_counts.index[0]) if not channel_counts.empty else None,
+            "top_channel_transaction_count": top_channel_count,
+            "top_channel_ratio": round(top_channel_count / total, 4) if total else 0.0,
+            "cross_border_transaction_count": int(cross_border_series.sum()),
+            "cross_border_ratio": round(float(cross_border_series.mean()), 4) if total else 0.0,
             "total_amount": float(transactions["amount"].sum()),
             "average_amount": round(float(transactions["amount"].mean()), 2),
         }
+
+    @lru_cache(maxsize=4096)
+    def customer_exists(self, customer_id: str) -> bool:
+        """Return whether a customer exists in real data or real model artifacts."""
+        if not customer_id:
+            return False
+        sources = [
+            "customer_features",
+            "kyc_individual",
+            "kyc_smallbusiness",
+            "abm",
+            "card",
+            "cheque",
+            "eft",
+            "emt",
+            "westernunion",
+            "wire",
+        ]
+        return any(
+            self._customer_exists_in_source(source, customer_id)
+            for source in sources
+        )
 
     def list_customer_data_sources(self) -> list[dict[str, Any]]:
         """Return metadata for customer-data browser sources."""
@@ -156,12 +154,6 @@ class DataService:
             "sections": sections,
         }
 
-    def _load_csv(self, filename: str) -> pd.DataFrame:
-        path = self.data_dir / filename
-        if not path.exists():
-            raise FileNotFoundError(f"Sample data file not found: {path}")
-        return pd.read_csv(path)
-
     def _get_real_feature_summary(self, customer_id: str) -> dict[str, Any]:
         if not self.model_feature_artifact.exists():
             return {}
@@ -179,7 +171,7 @@ class DataService:
         from app.ml.features import CHANNELS, normalize_channel_frame
 
         records: list[dict[str, Any]] = []
-        for channel in CHANNELS:
+        for channel in self._real_transaction_channels(customer_id, CHANNELS):
             path = self.real_data_dir / f"{channel}.csv"
             if not path.exists():
                 continue
@@ -212,6 +204,15 @@ class DataService:
                         return records
         records.sort(key=lambda item: str(item["timestamp"]))
         return records[:limit] if limit is not None else records
+
+    def _real_transaction_channels(self, customer_id: str, channels: tuple[str, ...]) -> tuple[str, ...]:
+        feature_summary = self._get_real_feature_summary(customer_id)
+        matched_channels = tuple(
+            channel
+            for channel in channels
+            if float(feature_summary.get(f"channel_count_{channel}") or 0.0) > 0.0
+        )
+        return matched_channels or channels
 
     def _requested_customer_sources(self, source: str) -> list[str]:
         if source == "all":
@@ -379,23 +380,6 @@ class DataService:
             else:
                 clean[key] = value
         return clean
-
-    @staticmethod
-    def _split_pipe_list(value: str) -> list[str]:
-        return [item.strip() for item in value.split("|") if item.strip()]
-
-    @staticmethod
-    def _single_row(dataframe: pd.DataFrame, customer_id: str, dataset_name: str) -> dict[str, Any]:
-        rows = dataframe[dataframe["customer_id"] == customer_id]
-        if rows.empty:
-            raise ValueError(f"No {dataset_name} record found for customer_id '{customer_id}'.")
-        return rows.iloc[0].to_dict()
-
-
-def default_sample_data_dir() -> Path:
-    """Return the backend sample data directory."""
-    return Path(__file__).resolve().parents[2] / "data" / "sample"
-
 
 def _resolve_repo_path(path: Path) -> Path:
     if path.exists():

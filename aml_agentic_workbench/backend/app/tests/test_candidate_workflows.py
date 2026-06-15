@@ -177,7 +177,7 @@ def test_investigator_endpoint_returns_case_feedback_for_model_learning() -> Non
         json={
             "role": "investigator",
             "task_type": "investigate_model_prioritized_candidate",
-            "customer_id": "CUST003",
+            "customer_id": "SYNID0100000167",
             "query": "Investigate this model-prioritized candidate and return feedback.",
             "selected_agents": ["case_investigation_agent"],
         },
@@ -204,7 +204,7 @@ def test_investigator_primary_route_uses_local_typology_fallback_without_pgvecto
         json={
             "role": "investigator",
             "task_type": "investigate_model_prioritized_candidate",
-            "customer_id": "CUST003",
+            "customer_id": "SYNID0100000167",
             "query": "Investigate this model-prioritized candidate and return typology feedback.",
         },
     )
@@ -229,7 +229,7 @@ def test_run_store_preserves_candidate_packages_for_report_history() -> None:
             "final_report": "Model-driven candidate handoff.",
             "agent_outputs": {},
             "audit_trace": [],
-            "candidate_packages": [{"candidate_id": "cand-1", "customer_id": "CUST003"}],
+            "candidate_packages": [{"candidate_id": "cand-1", "customer_id": "SYNID0100000167"}],
             "model_run_summary": {"candidate_count": 1},
             "investigation_case_review": {"disposition_recommendation": "monitor"},
         },
@@ -237,6 +237,6 @@ def test_run_store_preserves_candidate_packages_for_report_history() -> None:
 
     detail = store.add(response, task_type="generate_model_driven_candidates")
 
-    assert detail.candidate_packages == [{"candidate_id": "cand-1", "customer_id": "CUST003"}]
+    assert detail.candidate_packages == [{"candidate_id": "cand-1", "customer_id": "SYNID0100000167"}]
     assert detail.model_run_summary == {"candidate_count": 1}
     assert detail.investigation_case_review == {"disposition_recommendation": "monitor"}

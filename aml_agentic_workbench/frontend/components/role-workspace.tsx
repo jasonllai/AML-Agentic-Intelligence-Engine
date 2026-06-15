@@ -8,7 +8,7 @@ import { Badge, Button, Card, FieldLabel } from "@/components/ui";
 import { agents, defaultRoute, roles, tasks } from "@/lib/catalog";
 import { api } from "@/lib/api";
 import { formatLabel } from "@/lib/utils";
-import type { AgentName, AnalysisRequest, AnalysisResponse, SupportedRole, TaskType } from "@/types/api";
+import type { AgentName, AnalysisRequest, AnalysisResponse, AnalysisStreamEvent, SupportedRole, TaskType } from "@/types/api";
 
 export function RoleWorkspace({
   role,
@@ -33,20 +33,55 @@ export function RoleWorkspace({
   const mutation = useMutation<AnalysisResponse, Error, AnalysisRequest>({ mutationFn: api.runAnalysis });
   const runPhase = mutation.isPending ? "running" : mutation.isError ? "failed" : mutation.data ? "completed" : "idle";
   const isDataScientist = role === "data_scientist";
+  const usesStream = role === "investigator" && task === "investigate_model_prioritized_candidate";
+  const [streamEvents, setStreamEvents] = useState<AnalysisStreamEvent[]>([]);
+  const [streamReport, setStreamReport] = useState<AnalysisResponse | null>(null);
+  const [streamError, setStreamError] = useState<string | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const activeReport = usesStream ? streamReport : mutation.data;
+  const activePhase = usesStream
+    ? isStreaming ? "running" : streamError ? "failed" : streamReport ? "completed" : "idle"
+    : runPhase;
+  const isRunning = mutation.isPending || isStreaming;
 
   function selectTask(nextTask: TaskType) {
     setTask(nextTask);
     setQuery(queryFor(role, nextTask));
+    setStreamEvents([]);
+    setStreamReport(null);
+    setStreamError(null);
   }
 
   function submit() {
-    mutation.mutate({
+    const payload = {
       role,
       task_type: task,
       customer_id: customerId || undefined,
       query,
       require_full_report: false
-    });
+    };
+    if (usesStream) {
+      void submitStream(payload);
+      return;
+    }
+    mutation.mutate(payload);
+  }
+
+  async function submitStream(payload: AnalysisRequest) {
+    setIsStreaming(true);
+    setStreamEvents([]);
+    setStreamReport(null);
+    setStreamError(null);
+    try {
+      await api.runAnalysisStream(payload, {
+        onEvent: (event) => setStreamEvents((current) => [...current, event]),
+        onComplete: (response) => setStreamReport(response)
+      });
+    } catch (error) {
+      setStreamError(error instanceof Error ? error.message : "Streaming analysis failed.");
+    } finally {
+      setIsStreaming(false);
+    }
   }
 
   return (
@@ -120,12 +155,12 @@ export function RoleWorkspace({
                     </>
                   )}
 
-                  <Button onClick={submit} disabled={mutation.isPending || !query.trim()} className="w-full md:w-auto">
-                    {mutation.isPending ? "Workflow is running..." : `Run ${tasks[task]}`}
+                  <Button onClick={submit} disabled={isRunning || !query.trim()} className="w-full md:w-auto">
+                    {isRunning ? "Workflow is running..." : `Run ${tasks[task]}`}
                   </Button>
-                  {mutation.isError && (
+                  {(mutation.isError || streamError) && (
                     <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-danger">
-                      {friendlyError(mutation.error.message)}
+                      {friendlyError(streamError ?? mutation.error?.message ?? "Workflow failed.")}
                     </div>
                   )}
                 </div>
@@ -136,16 +171,18 @@ export function RoleWorkspace({
             <div className="grid gap-5">
               <AgentProgressTimeline
                 route={route}
-                executedAgents={mutation.data?.executed_agents as AgentName[] | undefined}
-                phase={runPhase}
+                executedAgents={activeReport?.executed_agents as AgentName[] | undefined}
+                phase={activePhase}
+                streamEvents={usesStream ? streamEvents : []}
+                streamMode={usesStream}
               />
             </div>
           </div>
         </div>
       </section>
 
-      {mutation.data ? (
-        <ReportView report={mutation.data} />
+      {activeReport ? (
+        <ReportView report={activeReport} />
       ) : (
         <Card className="border-dashed bg-white/70">
           <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">

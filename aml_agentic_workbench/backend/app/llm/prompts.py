@@ -50,9 +50,18 @@ def _agent_instruction(agent_name: str) -> str:
             "Critique feature quality and recommend PySpark features with rationale, formula, columns, edge cases, "
             "leakage risk, expected direction, and pseudocode."
         ),
+        "supervisor_planner_agent": (
+            "Choose exactly one next_action from the allowed investigator actions. Base the decision only on "
+            "completed evidence, missing evidence, and the bounded investigator policy. Use finalize_report only "
+            "when transaction behaviour, typology mapping, and case investigation evidence are sufficient."
+        ),
         "evidence_assembly_agent": (
             "Assemble a final report with only sections supported by executed agents. Include Executive Summary, "
             "Evidence Table, Limitations and Uncertainty, and Recommended Analytical Next Steps."
+        ),
+        "report_critic_agent": (
+            "Review the draft report for missing evidence links, weak case reasoning, unsupported conclusions, and "
+            "compliance-safe language. Request refinement only when it would materially improve auditability."
         ),
         "judge_panel_agent": "Score groundedness, coverage, and governance readiness with rationale.",
         "guardrail_agent": (

@@ -109,10 +109,10 @@ class DataServiceTool(BaseTool):
 
 
 class GetCustomerTransactionsTool(DataServiceTool):
-    """Return synthetic customer transactions."""
+    """Return real customer transactions."""
 
     name = "get_customer_transactions"
-    description = "Retrieve synthetic transactions for a customer."
+    description = "Retrieve real transactions for a customer."
     allowed_roles = ANALYTIC_ROLES
     input_schema = CustomerTransactionsInput
     output_schema = CustomerTransactionsOutput
@@ -128,7 +128,7 @@ class GetCustomerTransactionsTool(DataServiceTool):
 
 
 class GetCustomerFeatureSummaryTool(DataServiceTool):
-    """Return synthetic customer feature summary."""
+    """Return real customer feature summary."""
 
     name = "get_customer_feature_summary"
     description = "Retrieve engineered AML feature summary for a customer."
@@ -200,7 +200,7 @@ class SearchAmlKnowledgeBaseTool(BaseTool):
 
 
 class GetCounterpartyNetworkSummaryTool(DataServiceTool):
-    """Return synthetic counterparty network summary."""
+    """Return real customer network summary."""
 
     name = "get_counterparty_network_summary"
     description = "Summarize customer counterparty concentration and cross-border exposure."

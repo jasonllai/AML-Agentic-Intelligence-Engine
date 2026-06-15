@@ -32,6 +32,10 @@ class RunStore:
             model_run_summary=_as_optional_dict(result.get("model_run_summary")),
             candidate_packages=_as_list(result.get("candidate_packages")),
             investigation_case_review=_as_optional_dict(result.get("investigation_case_review")),
+            planner_decisions=_as_list(result.get("planner_decisions")),
+            critic_reviews=_as_list(result.get("critic_reviews")),
+            stop_reason=_as_str(result.get("stop_reason")),
+            refinement_rounds=_as_int(result.get("refinement_rounds")),
             executed_agents=response.executed_agents,
             judge_scores=response.judge_scores,
             route_explanation=response.route_explanation,
@@ -82,6 +86,10 @@ def _as_list(value: Any) -> list[dict[str, Any]]:
 
 def _as_str(value: Any) -> str | None:
     return value if isinstance(value, str) else None
+
+
+def _as_int(value: Any) -> int:
+    return value if isinstance(value, int) else 0
 
 
 run_store = RunStore()
