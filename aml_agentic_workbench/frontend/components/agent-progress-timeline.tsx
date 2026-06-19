@@ -190,7 +190,15 @@ function StreamEventRow({ event, index }: { event: AnalysisStreamEvent; index: n
 
 function eventTone(event: AnalysisStreamEvent): string {
   if (event.event === "run_failed") return "border-red-200 bg-red-50";
-  if (event.event === "run_completed" || event.event.endsWith("_completed")) return "border-green-200 bg-green-50";
+  if (event.event === "run_completed") {
+    if (event.response?.result.governance_status === "guardrail_failed") return "border-red-200 bg-red-50";
+    if (event.response?.result.governance_status === "judge_warning") return "border-amber-200 bg-amber-50";
+    return "border-green-200 bg-green-50";
+  }
+  if (event.event === "agent_completed" && event.agent === "guardrail_agent") {
+    return guardrailEventFailed(event) ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50";
+  }
+  if (event.event.endsWith("_completed")) return "border-green-200 bg-green-50";
   if (event.event.includes("started")) return "border-red-200 bg-red-50";
   return "border-slate-200 bg-slate-50";
 }
@@ -202,14 +210,27 @@ function eventTitle(event: AnalysisStreamEvent): string {
   if (event.event.endsWith("_started") && event.agent) {
     return `${agents[event.agent]?.label ?? formatLabel(event.agent)} running`;
   }
+  if (event.event === "agent_completed" && event.agent === "guardrail_agent") {
+    return `Guardrail Review completed: ${guardrailEventFailed(event) ? "Failed" : "Passed"}`;
+  }
   if (event.event === "agent_completed" && event.agent) {
     return `${agents[event.agent]?.label ?? formatLabel(event.agent)} completed`;
   }
   if (event.event === "critic_completed") {
     return `Critic ${formatLabel(event.review?.status ?? "review completed")}`;
   }
+  if (event.event === "guardrail_remediation_started") {
+    return "Guardrail remediation started";
+  }
+  if (event.event === "guardrail_remediation_completed") {
+    return "Guardrail remediation completed";
+  }
   if (event.agent) return agents[event.agent]?.label ?? formatLabel(event.agent);
-  if (event.event === "run_completed") return "Run completed";
+  if (event.event === "run_completed") {
+    if (event.response?.result.governance_status === "judge_warning") return "Run completed: Judge warning";
+    if (event.response?.result.governance_status === "guardrail_failed") return "Run completed: Guardrail failed";
+    return "Run completed";
+  }
   if (event.event === "run_started") return "Run started";
   return formatLabel(event.event);
 }
@@ -220,6 +241,10 @@ function eventBody(event: AnalysisStreamEvent): string {
       ? ` Missing evidence: ${event.decision.missing_evidence.join(", ")}.`
       : "";
     return `${event.decision?.reason ?? "Planner decision received."}${missing}`;
+  }
+  if (event.event === "agent_completed" && event.agent === "guardrail_agent") {
+    const flags = guardrailFlags(event);
+    return flags.length > 0 ? `Guardrail flags: ${flags.join(", ")}.` : "No blocking guardrail flags found.";
   }
   if (event.event === "agent_completed" && event.output) {
     const findings = event.output.findings?.slice(0, 2).join(" ");
@@ -236,7 +261,20 @@ function eventBody(event: AnalysisStreamEvent): string {
   if (event.event === "refinement_completed") {
     return "Refined report draft is ready for final Judge Panel and Guardrail review.";
   }
+  if (event.event === "guardrail_remediation_started") {
+    const flags = event.flags?.length ? ` Flags: ${event.flags.join(", ")}.` : "";
+    return truncate(`${event.instruction || "Governance remediation started from final guardrail feedback."}${flags}`, 260);
+  }
+  if (event.event === "guardrail_remediation_completed") {
+    return `Remediation pass ${event.guardrail_remediation_rounds ?? 1} completed; Judge Panel and Guardrail will rerun.`;
+  }
   if (event.event === "run_completed") {
+    if (event.response?.result.governance_status === "judge_warning") {
+      return "Final report returned with a Judge warning; Guardrail passed.";
+    }
+    if (event.response?.result.governance_status === "guardrail_failed") {
+      return "Final report was blocked or rewritten by output guardrails.";
+    }
     return "Final governed report returned.";
   }
   if (event.event === "run_failed") {
@@ -246,6 +284,23 @@ function eventBody(event: AnalysisStreamEvent): string {
     return agents[event.agent]?.why ?? "Agent checkpoint received.";
   }
   return "Workflow checkpoint received.";
+}
+
+function guardrailEventFailed(event: AnalysisStreamEvent): boolean {
+  return guardrailFlags(event).length > 0;
+}
+
+function guardrailFlags(event: AnalysisStreamEvent): string[] {
+  const structuredFlags = event.output?.structured_output?.flags;
+  if (Array.isArray(structuredFlags) && structuredFlags.every((flag) => typeof flag === "string")) {
+    return structuredFlags;
+  }
+  const evidenceFlags = event.output?.evidence?.flatMap((item) => {
+    const flags = item.flags;
+    return Array.isArray(flags) && flags.every((flag) => typeof flag === "string") ? flags : [];
+  });
+  if (evidenceFlags && evidenceFlags.length > 0) return evidenceFlags;
+  return (event.output?.findings ?? []).filter((finding) => finding !== "No blocking guardrail flags found.");
 }
 
 function truncate(value: string, maxLength: number): string {

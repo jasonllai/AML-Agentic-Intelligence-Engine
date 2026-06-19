@@ -34,26 +34,6 @@ export const roles: Record<
     defaultCustomerId: "SYNID0100000167",
     defaultQuery: "Investigate this model-prioritized candidate and return case feedback.",
     actions: ["investigate_model_prioritized_candidate"]
-  },
-  model_validator: {
-    label: "Model Validator",
-    focus: "Auditability, uncertainty, feature governance, and validation concerns.",
-    tasks: ["Model validation review", "Model risk explanation", "Feature quality review"],
-    reportStyle: "Governance-forward with caveats, limitations, and validation tests.",
-    defaultTask: "model_validation_review",
-    defaultCustomerId: "SYNID0100000485",
-    defaultQuery: "Review whether the model explanation is supportable, uncertain where appropriate, and validation-ready.",
-    actions: ["model_validation_review", "model_risk_explanation", "feature_quality_review"]
-  },
-  compliance_strategy: {
-    label: "Compliance Strategy",
-    focus: "Typology coverage, policy alignment, and careful regulatory language.",
-    tasks: ["Compliance typology review", "Typology mapping", "Full intelligence report"],
-    reportStyle: "Concise policy alignment with citations and non-conclusive language.",
-    defaultTask: "compliance_typology_review",
-    defaultCustomerId: "",
-    defaultQuery: "Review official typology indicators and summarize compliance-safe language for this scenario.",
-    actions: ["compliance_typology_review", "typology_mapping", "full_intelligence_report"]
   }
 };
 
@@ -65,9 +45,7 @@ export const tasks: Record<TaskType, string> = {
   typology_mapping: "Typology mapping",
   feature_quality_review: "Feature quality review",
   full_intelligence_report: "Full intelligence report",
-  investigator_summary: "Investigator summary",
-  model_validation_review: "Model validation review",
-  compliance_typology_review: "Compliance typology review"
+  investigator_summary: "Investigator summary"
 };
 
 export const agents: Record<AgentName, { label: string; why: string; sections: string[] }> = {
@@ -173,12 +151,6 @@ export function defaultRoute(role: SupportedRole, task: TaskType): AgentName[] {
       "judge_panel_agent",
       "guardrail_agent"
     ];
-  }
-  if (role === "model_validator" && task === "model_validation_review") {
-    return ["model_explanation_agent", "feature_critic_agent", "evidence_assembly_agent", "judge_panel_agent", "guardrail_agent"];
-  }
-  if (role === "compliance_strategy" && task === "compliance_typology_review") {
-    return ["typology_mapping_agent", "evidence_assembly_agent", "judge_panel_agent", "guardrail_agent"];
   }
   return ["evidence_assembly_agent", "judge_panel_agent", "guardrail_agent"];
 }

@@ -7,6 +7,7 @@ import type {
   AnalysisResponse,
   CriticReview,
   DetectionCandidatePackage,
+  GuardrailRemediation,
   InvestigationCaseReview,
   ModelResults,
   PlannerDecision,
@@ -68,17 +69,47 @@ function getRefinementRounds(report: ReportLike): number {
   return report.refinement_rounds ?? 0;
 }
 
+function getGuardrailRemediationRounds(report: ReportLike): number {
+  if ("result" in report) return report.result.guardrail_remediation_rounds ?? 0;
+  return report.guardrail_remediation_rounds ?? 0;
+}
+
+function getGuardrailRemediations(report: ReportLike): GuardrailRemediation[] {
+  if ("result" in report) return report.result.guardrail_remediations ?? [];
+  return report.guardrail_remediations ?? [];
+}
+
+function getGovernanceStatus(report: ReportLike): string {
+  if ("result" in report) return report.result.governance_status ?? (report.guardrail_status === "failed" ? "guardrail_failed" : "passed");
+  return report.governance_status ?? (report.guardrail_status === "failed" ? "guardrail_failed" : "passed");
+}
+
+function getJudgeStatus(report: ReportLike): string {
+  if ("result" in report) return report.result.judge_status ?? "passed";
+  return report.judge_status ?? "passed";
+}
+
+function getJudgeFailureReasons(report: ReportLike): string[] {
+  if ("result" in report) return report.result.judge_failure_reasons ?? [];
+  return report.judge_failure_reasons ?? [];
+}
+
 export function ReportView({ report }: { report: ReportLike }) {
   const agentOutputs = getAgentOutputs(report);
   const finalReport = getFinalReport(report);
   const judgeScores = report.judge_scores ?? {};
+  const governanceStatus = getGovernanceStatus(report);
+  const judgeStatus = getJudgeStatus(report);
+  const judgeFailureReasons = getJudgeFailureReasons(report);
   const exportAllowed = report.guardrail_status === "passed" && report.status === "completed";
+  const exportLabel = judgeStatus === "warning" ? "Export with warning" : "Export governed report";
   const citations = Object.values(agentOutputs).flatMap((output) => output.citations ?? []);
   const candidatePackages = getCandidatePackages(report);
   const investigationCaseReview = getInvestigationCaseReview(report);
   const modelResults = getModelResults(report);
   const plannerDecisions = getPlannerDecisions(report);
   const criticReviews = getCriticReviews(report);
+  const guardrailRemediations = getGuardrailRemediations(report);
 
   if (modelResults) {
     return (
@@ -98,16 +129,20 @@ export function ReportView({ report }: { report: ReportLike }) {
           <div className="p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <Badge tone={report.guardrail_status === "passed" ? "success" : "danger"}>
-                  Guardrail {report.guardrail_status}
-                </Badge>
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone={report.guardrail_status === "passed" ? "success" : "danger"}>
+                    Guardrail {report.guardrail_status}
+                  </Badge>
+                  {judgeStatus === "warning" && <Badge tone="warning">Judge warning</Badge>}
+                  {governanceStatus === "judge_warning" && <Badge tone="warning">Governance warning</Badge>}
+                </div>
                 <h1 className="mt-4 text-3xl font-semibold text-ink">AML Intelligence Package</h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                   Human-review output. Model scores and typology indicators are decision-support signals, not proof
                   of suspicious or criminal activity.
                 </p>
               </div>
-              <Button disabled={!exportAllowed}>Export governed report</Button>
+              <Button disabled={!exportAllowed}>{exportLabel}</Button>
             </div>
 
             <div className="mt-6 grid gap-3 md:grid-cols-4">
@@ -122,6 +157,8 @@ export function ReportView({ report }: { report: ReportLike }) {
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">Package status</div>
             <div className="mt-4 grid gap-3">
               <StatusLine label="Run status" value={formatLabel(report.status)} />
+              <StatusLine label="Governance" value={formatLabel(governanceStatus)} />
+              <StatusLine label="Judge" value={formatLabel(judgeStatus)} />
               <StatusLine label="Agents completed" value={String(Object.keys(agentOutputs).length)} />
               <StatusLine label="Citations" value={String(citations.length)} />
             </div>
@@ -140,6 +177,10 @@ export function ReportView({ report }: { report: ReportLike }) {
               criticReviews={criticReviews}
               stopReason={getStopReason(report)}
               refinementRounds={getRefinementRounds(report)}
+              guardrailRemediationRounds={getGuardrailRemediationRounds(report)}
+              guardrailRemediations={guardrailRemediations}
+              judgeStatus={judgeStatus}
+              judgeFailureReasons={judgeFailureReasons}
             />
             <CandidatePackagePanel packages={candidatePackages} />
             <InvestigationFeedbackPanel review={investigationCaseReview} />
@@ -257,21 +298,39 @@ function DecisionRefinementPanel({
   decisions,
   criticReviews,
   stopReason,
-  refinementRounds
+  refinementRounds,
+  guardrailRemediationRounds,
+  guardrailRemediations,
+  judgeStatus,
+  judgeFailureReasons
 }: {
   decisions: PlannerDecision[];
   criticReviews: CriticReview[];
   stopReason?: string | null;
   refinementRounds: number;
+  guardrailRemediationRounds: number;
+  guardrailRemediations: GuardrailRemediation[];
+  judgeStatus: string;
+  judgeFailureReasons: string[];
 }) {
-  if (decisions.length === 0 && criticReviews.length === 0 && !stopReason && refinementRounds === 0) return null;
+  if (
+    decisions.length === 0 &&
+    criticReviews.length === 0 &&
+    !stopReason &&
+    refinementRounds === 0 &&
+    guardrailRemediationRounds === 0 &&
+    judgeStatus !== "warning"
+  ) return null;
   const latestReview = criticReviews[criticReviews.length - 1];
+  const latestGuardrailRemediation = guardrailRemediations[guardrailRemediations.length - 1];
   return (
     <Card>
       <h2 className="text-lg font-semibold text-ink">Decision & Refinement</h2>
       <div className="mt-4 grid gap-2 text-sm">
         <FeedbackLine label="Stop reason" value={stopReason || "Planner finalized evidence gathering"} />
         <FeedbackLine label="Refinements" value={String(refinementRounds)} />
+        <FeedbackLine label="Guardrail remediation" value={String(guardrailRemediationRounds)} />
+        {judgeStatus === "warning" && <FeedbackLine label="Judge warning" value={judgeFailureReasons[0] || "Quality gate warning"} />}
         {latestReview && <FeedbackLine label="Critic status" value={formatLabel(latestReview.status)} />}
       </div>
       {decisions.length > 0 && (
@@ -293,6 +352,17 @@ function DecisionRefinementPanel({
           <ul className="mt-2 grid gap-1 text-sm text-slate-600">
             {latestReview.issues.slice(0, 3).map((issue) => <li key={issue}>- {issue}</li>)}
           </ul>
+        </div>
+      )}
+      {latestGuardrailRemediation && (
+        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+          <div className="font-semibold text-ink">Latest guardrail remediation</div>
+          <p className="mt-1 leading-6 text-slate-600">{latestGuardrailRemediation.instruction}</p>
+          {latestGuardrailRemediation.flags.length > 0 && (
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              Flags: {latestGuardrailRemediation.flags.join(", ")}
+            </p>
+          )}
         </div>
       )}
     </Card>

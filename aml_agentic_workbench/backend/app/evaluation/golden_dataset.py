@@ -17,8 +17,6 @@ RAG_TOPICS = (
 ROLE_TASK_CATALOG: dict[SupportedRole, tuple[str, ...]] = {
     SupportedRole.DATA_SCIENTIST: ("generate_model_driven_candidates",),
     SupportedRole.INVESTIGATOR: ("investigate_model_prioritized_candidate",),
-    SupportedRole.MODEL_VALIDATOR: ("model_validation_review",),
-    SupportedRole.COMPLIANCE_STRATEGY: ("compliance_typology_review",),
 }
 
 
@@ -64,15 +62,15 @@ def build_golden_dataset(
 
     for topic in RAG_TOPICS:
         route = router.route(
-            role=SupportedRole.COMPLIANCE_STRATEGY,
-            task_type="compliance_typology_review",
+            role=SupportedRole.INVESTIGATOR,
+            task_type="typology_mapping",
             query=topic,
         )
         cases.append(
             GoldenCase(
                 case_id=f"golden-{len(cases) + 1:04d}",
-                role=SupportedRole.COMPLIANCE_STRATEGY,
-                task_type="compliance_typology_review",
+                role=SupportedRole.INVESTIGATOR,
+                task_type="typology_mapping",
                 customer_id=None,
                 query=topic,
                 expected_agents=route.agents,
@@ -136,10 +134,8 @@ def _query_for(task_type: str, customer_id: str) -> str:
         return f"Investigate model-prioritized customer {customer_id} and return case feedback."
     if task_type == "typology_mapping":
         return f"Map customer {customer_id} behaviour to official AML typology indicators with citations."
-    if task_type in {"model_risk_explanation", "model_validation_review", "feature_quality_review"}:
+    if task_type in {"model_risk_explanation", "feature_quality_review"}:
         return f"Explain model risk and feature quality for customer {customer_id}."
-    if task_type == "compliance_typology_review":
-        return "Summarize official AML typology risk indicators and compliance-safe language."
     return f"Prepare governed AML intelligence for customer {customer_id}."
 
 

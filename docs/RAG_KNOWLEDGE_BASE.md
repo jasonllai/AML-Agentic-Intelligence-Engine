@@ -38,6 +38,8 @@ python -m app.rag.ingest_pgvector --manifest config/rag_sources.yaml
 
 This is intentional. Typology and regulatory grounding should not depend on hidden sample files in production-like runs.
 
+Exception: the primary Investigator handoff route, `investigate_model_prioritized_candidate`, catches pgvector unavailability inside `typology_mapping_agent` and uses `LocalKeywordRetriever` with an explicit limitation note. This narrow fallback exists so local candidate review remains usable before pgvector ingestion. Other typology/RAG routes still fail loudly.
+
 ## pgvector Schema
 
 The pgvector ingestion command creates these tables if missing:
@@ -66,6 +68,8 @@ From `aml_agentic_workbench/backend`:
 ```bash
 python -m app.rag.ingest_pgvector --manifest config/rag_sources.yaml
 ```
+
+If this command runs from the host while PostgreSQL is started by Docker Compose, use a host-resolvable database URL such as `DATABASE_URL=postgresql+psycopg://aml:aml@localhost:5432/aml_workbench`. The Docker service name `postgres` is only resolvable inside the Compose network.
 
 The command:
 
@@ -133,6 +137,8 @@ The typology mapping agent receives retrieved pgvector chunks and passes them to
 
 The citation policy is strict: typology or regulatory claims should cite retrieved official-source chunks.
 
+For the primary Investigator fallback path, the same citation and careful-language policy applies to local keyword results, and the agent records the fallback limitation in its output.
+
 ## Evaluation
 
 RAG is covered by the system evaluation framework:
@@ -157,7 +163,7 @@ The evaluation dashboard is available at:
 3. Run `python -m app.rag.ingest_pgvector --manifest config/rag_sources.yaml`.
 4. Inspect ingestion run and failure tables for failed sources.
 5. Run backend tests.
-6. Run an analysis smoke test for a typology route.
+6. Run an analysis smoke test for a typology route. Use a generic typology route to verify pgvector is active; the primary Investigator route can succeed locally through its narrow keyword fallback.
 7. Run the evaluation suite from the dashboard or API.
 
 ## Known Gaps

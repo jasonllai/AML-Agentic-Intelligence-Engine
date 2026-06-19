@@ -215,13 +215,13 @@ function queryFor(role: SupportedRole, task: TaskType): string {
   if (task === "investigate_model_prioritized_candidate") {
     return "Investigate this model-prioritized candidate and return case feedback.";
   }
-  if (task === "typology_mapping" || task === "compliance_typology_review") {
+  if (task === "typology_mapping") {
     return "Map this activity to official AML typology indicators with citations and non-conclusive wording.";
   }
   if (task === "feature_quality_review") {
     return "Review feature quality, stability, leakage risk, and useful feature improvements.";
   }
-  if (task === "model_risk_explanation" || task === "model_validation_review") {
+  if (task === "model_risk_explanation") {
     return "Explain the model score, uncertainty, strongest drivers, and validation concerns.";
   }
   if (task === "customer_behaviour_analysis" || task === "investigator_summary") {

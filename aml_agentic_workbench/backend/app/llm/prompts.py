@@ -10,10 +10,6 @@ ROLE_STYLE_GUIDANCE: dict[SupportedRole, str] = {
     SupportedRole.DATA_SCIENTIST: (
         "Include feature, model, and data quality detail suitable for AML data science review."
     ),
-    SupportedRole.MODEL_VALIDATOR: "Emphasize auditability, uncertainty, validation limits, and model governance.",
-    SupportedRole.COMPLIANCE_STRATEGY: (
-        "Emphasize typology coverage, policy alignment, and careful non-conclusive language."
-    ),
 }
 
 

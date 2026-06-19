@@ -6,38 +6,38 @@ Redesign the workbench so the Data Scientist and Investigator roles behave like 
 
 The target system should make the Data Scientist role model-driven and mathematically grounded, then hand a ranked, explainable candidate queue to the Investigator role for case-level review, typology mapping, disposition, and feedback.
 
-## Current Implementation Update
+## Current Implementation Status
 
-The next implementation pass must replace the single-model Data Scientist workflow with a four-model workbench:
+This redesign is now implemented in the active codebase. The Data Scientist workflow uses a four-model workbench:
 
 - Isolation Forest.
 - Autoencoder.
 - Variational Autoencoder.
 - Conditional Variational Autoencoder.
 
-The Data Scientist panel must not show report-quality judge cards such as overall judge, faithfulness, citations, or compliance. Those are not model performance metrics and are not appropriate for this workflow.
+The Data Scientist panel does not show report-quality judge cards such as overall judge, faithfulness, citations, or compliance. Those are not model performance metrics and are not appropriate for this workflow.
 
-The Data Scientist workflow may use an LLM only to write readable explanations from deterministic model evidence. The LLM must not determine rank, score, threshold, suspiciousness, or feature drivers. Every LLM-generated candidate explanation must be guardrailed before it is returned to the frontend. If guardrail fails, the backend must return a deterministic fallback explanation.
+The Data Scientist workflow may use an LLM only to write readable explanations from deterministic model evidence. The LLM does not determine rank, score, threshold, suspiciousness, or feature drivers. Every LLM-generated candidate explanation is guardrailed before it is returned to the frontend. If guardrail fails, the backend returns a deterministic fallback explanation.
 
-Isolation Forest explanations should use model-agnostic SHAP over the actual anomaly-score function for top-ranked candidates. SHAP values select the customer-specific top drivers, while a governed feature dictionary explains each feature's meaning, engineering formula, baseline comparison, and investigator review focus. LLM wording may organize this evidence, but deterministic SHAP and feature metadata remain the source of truth.
+Isolation Forest explanations use model-agnostic SHAP over the actual anomaly-score function for top-ranked candidates. SHAP values select the customer-specific top drivers, while a governed feature dictionary explains each feature's meaning, engineering formula, baseline comparison, and investigator review focus. Autoencoder, VAE, and CVAE candidates expose reconstruction-error contribution. LLM wording may organize this evidence, but deterministic model attribution and feature metadata remain the source of truth.
 
 ## Core Assumptions
 
 - The bank-realistic operating model is detection first, investigation second.
 - Model output is prioritization evidence, not proof of suspicious activity.
 - Investigators, not models, decide whether facts, context, and AML indicators support escalation.
-- The initial redesign should focus on two roles: `data_scientist` and `investigator`.
-- `model_validator` and `compliance_strategy` may be demoted to governance/evaluation layers rather than kept as primary user roles.
+- The active redesign focuses on two roles: `data_scientist` and `investigator`.
+- `model_validator` and `compliance_strategy` are not supported roles in the current schema; their concerns are represented through governance, guardrails, and evaluation layers.
 - The frontend should remain structurally close to the current workbench. The main change should be fewer, stronger role tasks.
 - One realistic task per role is preferable to many weak or redundant tasks.
 
-## Current Design Problem
+## Original Design Problem
 
-The current system has role labels and route permissions, but the role responsibilities are still too similar.
+The pre-redesign system had role labels and route permissions, but the role responsibilities were too similar.
 
-Current Data Scientist work is centered on single-customer model explanation and feature critique. That is useful, but incomplete. In a real AML data science team, the role should own the model lifecycle: feature engineering, model training, model comparison, threshold tuning, population scoring, ranked alert generation, explainability, monitoring, and feedback analysis.
+Pre-redesign Data Scientist work was centered on single-customer model explanation and feature critique. That was useful, but incomplete. In a real AML data science team, the role should own the model lifecycle: feature engineering, model training, model comparison, threshold tuning, population scoring, ranked alert generation, explainability, monitoring, and feedback analysis.
 
-Current Investigator work is closer to case review, but it is not clearly downstream from a model-driven detection handoff. The Investigator should consume a ranked candidate package from Data Science, then perform evidence review, typology mapping, disposition, and feedback.
+Pre-redesign Investigator work was closer to case review, but it was not clearly downstream from a model-driven detection handoff. The Investigator should consume a ranked candidate package from Data Science, then perform evidence review, typology mapping, disposition, and feedback.
 
 ## Target Role Contracts
 

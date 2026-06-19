@@ -54,19 +54,6 @@ ROLE_AGENT_PERMISSIONS: dict[SupportedRole, set[str]] = {
         JUDGE_PANEL_AGENT,
         GUARDRAIL_AGENT,
     },
-    SupportedRole.MODEL_VALIDATOR: {
-        MODEL_EXPLANATION_AGENT,
-        FEATURE_CRITIC_AGENT,
-        EVIDENCE_ASSEMBLY_AGENT,
-        JUDGE_PANEL_AGENT,
-        GUARDRAIL_AGENT,
-    },
-    SupportedRole.COMPLIANCE_STRATEGY: {
-        TYPOLOGY_MAPPING_AGENT,
-        EVIDENCE_ASSEMBLY_AGENT,
-        JUDGE_PANEL_AGENT,
-        GUARDRAIL_AGENT,
-    },
 }
 
 FULL_INTELLIGENCE_ROUTE: tuple[str, ...] = (
@@ -103,19 +90,6 @@ ROUTE_TABLE: dict[tuple[SupportedRole, str], tuple[str, ...]] = {
     ),
     (SupportedRole.INVESTIGATOR, "investigator_summary"): (
         TRANSACTION_BEHAVIOUR_AGENT,
-        TYPOLOGY_MAPPING_AGENT,
-        EVIDENCE_ASSEMBLY_AGENT,
-        JUDGE_PANEL_AGENT,
-        GUARDRAIL_AGENT,
-    ),
-    (SupportedRole.MODEL_VALIDATOR, "model_validation_review"): (
-        MODEL_EXPLANATION_AGENT,
-        FEATURE_CRITIC_AGENT,
-        EVIDENCE_ASSEMBLY_AGENT,
-        JUDGE_PANEL_AGENT,
-        GUARDRAIL_AGENT,
-    ),
-    (SupportedRole.COMPLIANCE_STRATEGY, "compliance_typology_review"): (
         TYPOLOGY_MAPPING_AGENT,
         EVIDENCE_ASSEMBLY_AGENT,
         JUDGE_PANEL_AGENT,

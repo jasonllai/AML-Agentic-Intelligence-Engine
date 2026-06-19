@@ -23,6 +23,7 @@ from app.services.run_logger import AgentRunLogger
 from app.services.run_store import run_store
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
+JUDGE_PANEL_FAILED_FLAG = "judge_panel_failed"
 
 
 @router.post("", response_model=AnalysisResponse)
@@ -197,12 +198,27 @@ def _build_analysis_response(
         context=policy_context,
         citations=citations,
     )
-    if not output_decision.allowed:
+    judge_failure_reasons = _collect_judge_failure_reasons(judge_result)
+    guardrail_policy_flags = [flag for flag in output_decision.flags if flag != JUDGE_PANEL_FAILED_FLAG]
+    guardrail_flags = _dedupe_strings([*final_state.get("guardrail_flags", []), *guardrail_policy_flags])
+    guardrail_failure_reasons = _collect_guardrail_failure_reasons(
+        final_state=final_state,
+        output_failure_reasons=output_decision.failure_reasons,
+        judge_failure_reasons=judge_failure_reasons,
+    )
+    actual_guardrail_failed = bool(guardrail_flags)
+    judge_warning = judge_result.pass_fail == "fail"
+    governance_status = (
+        "guardrail_failed" if actual_guardrail_failed else "judge_warning" if judge_warning else "passed"
+    )
+    judge_status = "warning" if judge_warning else "passed"
+
+    if actual_guardrail_failed:
         final_state["audit_trace"] = [
             *final_state.get("audit_trace", []),
             {
                 "event": "guardrail_failed",
-                "failure_reasons": output_decision.failure_reasons,
+                "failure_reasons": guardrail_failure_reasons,
                 "unsafe_output_stored_for_audit_only": bool(output_decision.audit_only_output),
             },
         ]
@@ -210,6 +226,14 @@ def _build_analysis_response(
             "Output blocked by AML policy. Evidence is insufficient to conclude; requires human review before action."
         )
         final_state["final_report"] = final_report
+    elif judge_warning:
+        final_state["audit_trace"] = [
+            *final_state.get("audit_trace", []),
+            {
+                "event": "judge_warning",
+                "failure_reasons": judge_failure_reasons,
+            },
+        ]
 
     AgentRunLogger().create_run_record(
         run_id=run_id,
@@ -223,7 +247,6 @@ def _build_analysis_response(
     )
     AgentRunLogger().create_step_records(run_id, final_state)
 
-    guardrail_flags = [*final_state.get("guardrail_flags", []), *output_decision.flags]
     result = {
         "message": "Dynamic AML agent route executed with policy and judge evaluation.",
         "query": request.query,
@@ -236,18 +259,23 @@ def _build_analysis_response(
         "critic_reviews": final_state.get("critic_reviews", []),
         "stop_reason": final_state.get("stop_reason"),
         "refinement_rounds": final_state.get("refinement_rounds", 0),
+        "guardrail_remediation_rounds": final_state.get("guardrail_remediation_rounds", 0),
+        "guardrail_remediations": final_state.get("guardrail_remediations", []),
+        "governance_status": governance_status,
+        "judge_status": judge_status,
         "final_report": final_report,
         "audit_trace": final_state.get("audit_trace", []),
         "judge_panel": judge_result.model_dump(mode="json"),
-        "guardrail_failure_reasons": output_decision.failure_reasons,
+        "guardrail_failure_reasons": guardrail_failure_reasons,
+        "judge_failure_reasons": judge_failure_reasons,
     }
     response = AnalysisResponse(
         run_id=run_id,
         role=request.role,
         executed_agents=final_state.get("executed_agents", []),
-        status="completed" if output_decision.allowed else "guardrail_failed",
+        status="guardrail_failed" if actual_guardrail_failed else "completed",
         result=result,
-        guardrail_status="failed" if guardrail_flags or not output_decision.allowed else "passed",
+        guardrail_status="failed" if actual_guardrail_failed else "passed",
         judge_scores={criterion.value: decision.score for criterion, decision in judge_result.decisions.items()}
         | {"overall_score": judge_result.overall_score},
         route_explanation=route.explanation,
@@ -261,6 +289,39 @@ def _collect_citations(state: dict) -> list[dict[str, object]]:
     for output in state.get("agent_outputs", {}).values():
         citations.extend(output.get("citations", []))
     return citations
+
+
+def _collect_judge_failure_reasons(judge_result: object) -> list[str]:
+    reasons: list[str] = []
+    failure_reason = getattr(judge_result, "failure_reason", None)
+    if failure_reason:
+        reasons.append(str(failure_reason))
+    decisions = getattr(judge_result, "decisions", {})
+    for criterion, decision in decisions.items():
+        if getattr(decision, "pass_fail", "pass") != "fail":
+            continue
+        label = getattr(criterion, "value", str(criterion))
+        issues = getattr(decision, "detected_issues", []) or []
+        if issues:
+            reasons.extend([f"{label}: {issue}" for issue in issues])
+        else:
+            reasons.append(f"{label}: judge failed")
+    return _dedupe_strings(reasons)
+
+
+def _collect_guardrail_failure_reasons(
+    *,
+    final_state: dict,
+    output_failure_reasons: list[str],
+    judge_failure_reasons: list[str],
+) -> list[str]:
+    excluded = {JUDGE_PANEL_FAILED_FLAG, *judge_failure_reasons}
+    reasons = [*final_state.get("guardrail_failure_reasons", []), *output_failure_reasons]
+    return _dedupe_strings([reason for reason in reasons if reason not in excluded])
+
+
+def _dedupe_strings(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(values))
 
 
 def _validate_investigator_customer(request: AnalysisRequest) -> None:

@@ -7,6 +7,7 @@ The evaluation framework tests the full AML Workbench as a governed system, not 
 It evaluates:
 
 - Role/task routing.
+- Primary Data Scientist candidate generation and primary Investigator case review.
 - Partial and full agent execution.
 - Guardrail behaviour.
 - Required citation presence.
@@ -29,11 +30,12 @@ Cases include:
 
 - Real or configured customer IDs.
 - Labeled and unlabeled customer coverage.
-- Every supported role.
-- Supported task routes that are valid for each role.
+- Every supported role: `data_scientist` and `investigator`.
+- Supported task routes that are valid for each role, including `generate_model_driven_candidates` and `investigate_model_prioritized_candidate`.
 - Official-source RAG typology topics.
 - Prompt-injection guardrail cases.
 - Missing-customer model scoring cases.
+- Candidate-package and investigator-feedback coverage.
 
 Each case records:
 

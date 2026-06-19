@@ -1,92 +1,146 @@
 # Agents and Workflows
 
+This document describes the current agent catalog and active workflow design. The frontend exposes two primary role workflows: Data Scientist candidate generation and Investigator case review.
+
+## Primary Role Contracts
+
+### Data Scientist
+
+Purpose: generate model-prioritized AML investigation candidates from the modeled customer population.
+
+Primary task:
+
+```text
+generate_model_driven_candidates
+```
+
+Route:
+
+```text
+candidate_ranking_agent
+-> guardrail_agent
+```
+
+The API response for this task is model-output oriented. It returns `model_run_summary`, `model_results`, `model_comparison`, and `candidate_packages`. It intentionally does not run or display report-quality judge cards, because judge faithfulness/citation/compliance scores are not model performance metrics.
+
+### Investigator
+
+Purpose: review one model-prioritized customer, gather evidence, map typology indicators carefully, produce a disposition recommendation, and return model-feedback fields.
+
+Primary task:
+
+```text
+investigate_model_prioritized_candidate
+```
+
+Route:
+
+```text
+supervisor_planner_agent
+-> transaction_behaviour_agent
+-> typology_mapping_agent
+-> case_investigation_agent
+-> evidence_assembly_agent
+-> report_critic_agent
+-> judge_panel_agent
+-> guardrail_agent
+```
+
+The primary Investigator route uses `InvestigatorAgenticRunner`, not a plain fixed graph. The runner streams planner decisions and agent events, enforces bounded evidence actions in order, allows one critic refinement, and allows one guardrail remediation pass before returning the final governed package.
+
 ## Agent Catalog
+
+### Candidate Ranking Agent
+
+Purpose: generate ranked model-driven candidates for investigator handoff.
+
+Inputs:
+- Local model service artifacts under `artifacts/models/`.
+- Feature matrix from `artifacts/models/customer_features.csv`.
+- Real-data transaction slices from `real_data/` when packaging a specific customer.
+- Optional LLM client for readable candidate explanation wording.
+
+Outputs:
+- `model_run_summary`.
+- Four model result lists:
+  - `isolation_forest`
+  - `autoencoder`
+  - `variational_autoencoder`
+  - `conditional_variational_autoencoder`
+  - `intersection`
+- Detection Candidate Packages with model score, rank, threshold, feature drivers, guarded explanation, limitations, missing data, suggested investigation focus, and required disclaimer.
+
+Guardrail behaviour:
+- LLM explanations can only summarize deterministic model evidence.
+- Unsafe candidate explanation wording is replaced with deterministic fallback wording.
+
+### Supervisor Planner Agent
+
+Purpose: choose the next bounded Investigator evidence action.
+
+Allowed actions:
+- `transaction_behaviour_agent`
+- `typology_mapping_agent`
+- `case_investigation_agent`
+- `finalize_report`
+
+Runtime policy:
+- The bounded Investigator runner overrides invalid or out-of-order planner choices.
+- Required evidence actions run before final report assembly.
 
 ### Transaction Behaviour Agent
 
-Purpose: explain customer activity patterns using transaction history, feature summaries, and counterparty/network summaries.
+Purpose: explain customer activity patterns using real transaction history, engineered feature summaries, and channel/network summaries.
 
 Inputs:
-- Customer transactions from `DataService.get_transactions`.
-- Customer feature summary from sample data or trained real-data feature artifacts.
-- Network summary from sample data or real channel transactions.
+- Transactions from `DataService.get_transactions`.
+- Feature summary from `DataService.get_feature_summary`.
+- Network summary from `DataService.get_network_summary`.
 
 Outputs:
 - Behavioural summary.
 - Abnormal patterns.
 - Evidence items.
-- Confidence score.
-
-Use cases:
-- Investigator review of customer activity.
-- Data scientist review of feature behaviour.
-- Evidence context before typology mapping.
-
-### Model Explanation Agent
-
-Purpose: explain model-driven AML risk signals without treating model output as proof.
-
-Current implementation:
-- Uses `ModelService.score_customer` when trained artifacts are available.
-- Uses an explicit `untrained` / `model_artifact_required` envelope when no model artifact or no customer feature row is available.
-- Does not rely on `model_outputs.csv` for agent execution.
-
-Outputs:
-- Model summary.
-- Top risk drivers.
-- Score interpretation.
-- Model uncertainty.
-- Feature directionality.
-- Caveats.
-
-Use cases:
-- Model validator review.
-- Data scientist review.
-- Investigator-facing explanation of why a model prioritized a customer.
+- Uncertainty and confidence.
 
 ### Typology Mapping Agent
 
-Purpose: map observed activity to AML typology indicators using retrieved official-source knowledge and careful language.
+Purpose: map observed activity to AML typology indicators using retrieved official-source context and careful language.
 
 Inputs:
 - User query.
 - Prior transaction behaviour output, when available.
 - Retrieved RAG documents from `KnowledgeRetriever`.
 
+Runtime retrieval:
+- Default runtime retrieval uses PostgreSQL/pgvector.
+- For the primary Investigator handoff route only, the node uses a local keyword fallback when pgvector is unavailable so local case review remains possible.
+- Other typology routes fail loudly when pgvector is unavailable.
+
 Outputs:
 - Matched typologies.
 - Supporting indicators.
-- Citations.
+- Citation objects.
 - Missing evidence.
-- Confidence.
 - Careful, non-conclusive summary.
 
-Use cases:
-- Investigator typology context.
-- Compliance strategy review.
-- Guardrail-safe narrative grounding.
+### Case Investigation Agent
 
-### Feature Critic Agent
-
-Purpose: critique AML feature quality and recommend validation-ready feature improvements.
+Purpose: prepare investigator case review and feedback for model monitoring.
 
 Inputs:
-- Customer feature summary.
-- Model score output from `ModelService` when available.
-- Prior behaviour analysis, when available.
+- Customer ID.
+- Query.
+- Prior behaviour and typology outputs.
+- Candidate package generated for the customer through `CandidateGenerationService`.
 
 Outputs:
-- Feature quality findings.
-- Unstable features.
-- Leakage risks.
-- Missing feature opportunities.
-- PySpark-style feature recommendations.
-- Validation tests.
-
-Use cases:
-- Data science feature backlog.
-- Model validation evidence.
-- Feature governance discussions.
+- Candidate package.
+- Behaviour review.
+- Typology review.
+- Missing evidence.
+- Disposition recommendation.
+- Investigator feedback fields for model evaluation.
 
 ### Evidence Assembly Agent
 
@@ -97,6 +151,7 @@ Inputs:
 - Task type.
 - Executed agents.
 - Agent outputs.
+- Critic reviews and refinement context.
 
 Outputs:
 - Markdown report.
@@ -105,14 +160,23 @@ Outputs:
 - Limitations and uncertainty.
 - Recommended analytical next steps.
 
-Use cases:
-- Final report packaging.
-- Partial-agent workflows.
-- Role-specific summaries.
+### Report Critic Agent
+
+Purpose: review the draft Investigator report before final governance.
+
+Outputs:
+- Critic status.
+- Issues.
+- Optional target section.
+- Optional refinement instruction.
+- `must_refine` decision.
+- Confidence.
+
+The bounded Investigator runner allows one evidence-assembly refinement pass from critic feedback.
 
 ### Judge Panel Agent
 
-Purpose: score the generated output for quality and governance readiness.
+Purpose: score generated output for quality and governance readiness.
 
 Judges:
 - Faithfulness.
@@ -122,10 +186,9 @@ Judges:
 - Data science quality.
 - Usefulness.
 
-Use cases:
-- Quality gate before report presentation.
-- Auditability of generated intelligence.
-- Regression testing of agent behaviour.
+Important distinction:
+- Data Scientist candidate generation does not run `judge_panel_agent`.
+- Investigator report generation runs `judge_panel_agent`, and `PolicyEngine.evaluate_output` also runs final response gating.
 
 ### Guardrail Agent
 
@@ -135,61 +198,75 @@ Checks:
 - Empty or malformed query state.
 - Missing agent outputs.
 - Prohibited AML certainty language.
+- Unsupported typology claims.
+- Model-score-as-proof language.
 - Required disclaimers.
 
-Use cases:
-- Final route step for every route.
-- Safe fallback report generation when evidence assembly did not run.
+The bounded Investigator runner allows one remediation pass for fixable guardrail flags. Non-remediable flags such as empty query or missing agent outputs do not loop.
+
+### Legacy/Generic Agents
+
+These agents remain available for generic routes and tests but are not primary frontend workflows:
+
+- `model_explanation_agent`
+- `feature_critic_agent`
+- `evidence_assembly_agent`
+- `judge_panel_agent`
+- `guardrail_agent`
+
+`model_validator` and `compliance_strategy` are no longer supported roles in `SupportedRole`.
 
 ## Role Permissions
 
-| Role | Main Agents |
+| Role | Allowed agents |
 | --- | --- |
-| Data scientist | Transaction behaviour, model explanation, feature critic, evidence assembly, judge panel, guardrail |
-| Investigator | Transaction behaviour, typology mapping, evidence assembly, judge panel, guardrail |
-| Model validator | Model explanation, feature critic, evidence assembly, judge panel, guardrail |
-| Compliance strategy | Typology mapping, evidence assembly, judge panel, guardrail |
+| Data Scientist | `transaction_behaviour_agent`, `model_explanation_agent`, `feature_critic_agent`, `candidate_ranking_agent`, `evidence_assembly_agent`, `judge_panel_agent`, `guardrail_agent` |
+| Investigator | `transaction_behaviour_agent`, `typology_mapping_agent`, `case_investigation_agent`, `supervisor_planner_agent`, `evidence_assembly_agent`, `report_critic_agent`, `judge_panel_agent`, `guardrail_agent` |
 
 ## Workflow Patterns
 
-### Full Intelligence Report
+### Data Scientist Candidate Generation
 
 ```mermaid
 flowchart TD
-    A[Request] --> B[Transaction Behaviour]
-    B --> C[Model Explanation]
-    C --> D[Typology Mapping]
-    D --> E[Feature Critic]
-    E --> F[Evidence Assembly]
-    F --> G[Judge Panel]
-    G --> H[Guardrail Review]
-    H --> I[Final AML Intelligence Report]
+    A[Request] --> B[Candidate Ranking]
+    B --> C[Isolation Forest]
+    B --> D[Autoencoder]
+    B --> E[Variational Autoencoder]
+    B --> F[Conditional Variational Autoencoder]
+    C --> G[Candidate Packages]
+    D --> G
+    E --> G
+    F --> G
+    G --> H[Guarded Explanations and Fallbacks]
+    H --> I[Investigator Handoff Links]
 ```
 
-### Investigator Summary
+### Investigator Case Review
 
 ```mermaid
 flowchart TD
-    A[Investigator Request] --> B[Transaction Behaviour]
-    B --> C[Typology Mapping]
-    C --> D[Evidence Assembly]
-    D --> E[Judge Panel]
-    E --> F[Guardrail Review]
-```
-
-### Model Validation Review
-
-```mermaid
-flowchart TD
-    A[Model Validator Request] --> B[Model Explanation]
-    B --> C[Feature Critic]
-    C --> D[Evidence Assembly]
-    D --> E[Judge Panel]
-    E --> F[Guardrail Review]
+    A[Investigator Request] --> B[Supervisor Planner]
+    B --> C[Transaction Behaviour]
+    C --> D[Supervisor Planner]
+    D --> E[Typology Mapping]
+    E --> F[Supervisor Planner]
+    F --> G[Case Investigation]
+    G --> H[Evidence Assembly]
+    H --> I[Report Critic]
+    I --> J{Refine?}
+    J -- Yes --> H
+    J -- No --> K[Judge Panel]
+    K --> L[Guardrail Review]
+    L --> M{Fixable guardrail flags?}
+    M -- Yes --> I
+    M -- No --> N[Governed Package]
 ```
 
 ## Partial-Agent Execution
 
-Manual `selected_agents` are allowed when the role has permission for every selected agent. The router always appends `guardrail_agent` as the final step. It does not automatically add evidence assembly or judge panel for manual partial routes; callers must select those agents if they want a full report and judge review.
+Manual `selected_agents` are allowed when the role has permission for every selected agent. The router appends `guardrail_agent` as the final step for selected partial routes. It does not automatically add evidence assembly or judge panel for manual partial routes.
 
-This design reduces latency and data exposure, but it means partial workflows can produce fallback reports when evidence assembly is skipped.
+Exceptions:
+- `generate_model_driven_candidates` runs `candidate_ranking_agent` and the appended `guardrail_agent`, but candidate explanation safety is also enforced inside candidate packaging before results are returned.
+- `supervisor_planner_agent` and `report_critic_agent` are reserved for the primary Investigator route and are rejected in manual partial selections.

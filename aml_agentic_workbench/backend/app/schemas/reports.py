@@ -45,6 +45,11 @@ class ReportDetailResponse(BaseModel):
     critic_reviews: list[dict[str, Any]] = Field(default_factory=list)
     stop_reason: str | None = None
     refinement_rounds: int = 0
+    guardrail_remediation_rounds: int = 0
+    guardrail_remediations: list[dict[str, Any]] = Field(default_factory=list)
+    governance_status: str | None = None
+    judge_status: str | None = None
+    judge_failure_reasons: list[str] = Field(default_factory=list)
     executed_agents: list[str] = Field(default_factory=list)
     judge_scores: dict[str, float] | None = None
     route_explanation: str | None = None

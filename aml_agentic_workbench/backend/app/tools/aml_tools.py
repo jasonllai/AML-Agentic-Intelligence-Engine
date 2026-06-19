@@ -21,10 +21,9 @@ ANALYTIC_ROLES = frozenset(
     {
         SupportedRole.DATA_SCIENTIST,
         SupportedRole.INVESTIGATOR,
-        SupportedRole.MODEL_VALIDATOR,
     }
 )
-REPORTING_ROLES = frozenset({SupportedRole.INVESTIGATOR, SupportedRole.COMPLIANCE_STRATEGY})
+REPORTING_ROLES = frozenset({SupportedRole.INVESTIGATOR})
 
 
 class CustomerIdInput(BaseModel):
@@ -151,7 +150,7 @@ class GetModelOutputsTool(DataServiceTool):
 
     name = "get_model_outputs"
     description = "Retrieve AML model output scores and leading features."
-    allowed_roles = frozenset({SupportedRole.DATA_SCIENTIST, SupportedRole.MODEL_VALIDATOR})
+    allowed_roles = frozenset({SupportedRole.DATA_SCIENTIST})
     input_schema = CustomerIdInput
     output_schema = ModelOutputsOutput
 

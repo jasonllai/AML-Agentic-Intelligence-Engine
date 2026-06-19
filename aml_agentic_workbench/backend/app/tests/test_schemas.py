@@ -35,7 +35,7 @@ def test_analysis_response_shape() -> None:
     """Analysis responses should carry run and governance metadata."""
     response = AnalysisResponse(
         run_id="run-1",
-        role=SupportedRole.MODEL_VALIDATOR,
+        role=SupportedRole.DATA_SCIENTIST,
         executed_agents=["model_explanation_agent"],
         status="completed",
         result={"summary": "stub"},
@@ -59,7 +59,7 @@ def test_router_uses_selected_agents_when_provided() -> None:
 def test_initial_state_contains_required_collections() -> None:
     """Initial graph state should include mutable collection fields."""
     state = initial_state(
-        role=SupportedRole.COMPLIANCE_STRATEGY,
+        role=SupportedRole.INVESTIGATOR,
         task_type="full_intelligence_report",
         query="Generate a governed report.",
     )

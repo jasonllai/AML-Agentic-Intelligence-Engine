@@ -28,10 +28,17 @@ class AMLAgentState(TypedDict, total=False):
     critic_reviews: list[dict[str, Any]]
     stop_reason: str | None
     refinement_rounds: int
+    guardrail_remediation_rounds: int
+    guardrail_remediations: list[dict[str, Any]]
+    guardrail_remediation_instruction: str | None
     stream_events: list[dict[str, Any]]
     agent_outputs: dict[str, dict[str, Any]]
     judge_outputs: dict[str, Any]
+    judge_panel_result: dict[str, Any]
     guardrail_flags: list[str]
+    guardrail_failure_reasons: list[str]
+    guardrail_allowed: bool
+    guardrail_safe_output: str | None
     final_report: str | None
     audit_trace: list[dict[str, Any]]
 
@@ -69,10 +76,17 @@ def initial_state(
         critic_reviews=[],
         stop_reason=None,
         refinement_rounds=0,
+        guardrail_remediation_rounds=0,
+        guardrail_remediations=[],
+        guardrail_remediation_instruction=None,
         stream_events=[],
         agent_outputs={},
         judge_outputs={},
+        judge_panel_result={},
         guardrail_flags=[],
+        guardrail_failure_reasons=[],
+        guardrail_allowed=True,
+        guardrail_safe_output=None,
         final_report=None,
         audit_trace=[],
     )

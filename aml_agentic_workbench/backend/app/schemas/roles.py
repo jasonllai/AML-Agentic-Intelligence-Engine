@@ -10,12 +10,9 @@ class SupportedRole(StrEnum):
 
     DATA_SCIENTIST = "data_scientist"
     INVESTIGATOR = "investigator"
-    MODEL_VALIDATOR = "model_validator"
-    COMPLIANCE_STRATEGY = "compliance_strategy"
 
 
 class RoleCatalogResponse(BaseModel):
     """Supported role catalog response."""
 
     roles: list[SupportedRole] = Field(..., description="Roles supported by the workbench.")
-

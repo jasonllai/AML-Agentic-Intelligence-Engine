@@ -139,10 +139,11 @@ def test_analysis_endpoint_blocks_unauthorized_selected_agent() -> None:
     response = client.post(
         "/api/v1/analysis",
         json={
-            "role": "compliance_strategy",
-            "task_type": "compliance_typology_review",
-            "query": "Map compliance typology.",
-            "selected_agents": ["transaction_behaviour_agent"],
+            "role": "investigator",
+            "task_type": "investigator_summary",
+            "customer_id": REAL_CUSTOMER_ID,
+            "query": "Run an unauthorized candidate ranking step.",
+            "selected_agents": ["candidate_ranking_agent"],
         },
     )
 

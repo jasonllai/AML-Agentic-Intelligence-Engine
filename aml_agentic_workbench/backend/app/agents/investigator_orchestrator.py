@@ -27,6 +27,8 @@ EVIDENCE_ACTIONS: tuple[str, ...] = (
 PLANNER_ALLOWED_ACTIONS: tuple[str, ...] = (*EVIDENCE_ACTIONS, FINALIZE_REPORT)
 MAX_PLANNER_STEPS = 6
 MAX_REFINEMENT_ROUNDS = 1
+MAX_GUARDRAIL_REMEDIATION_ROUNDS = 1
+NON_REMEDIABLE_GUARDRAIL_FLAGS = {"empty_query", "no_agent_outputs"}
 
 
 class InvestigatorAgenticRunner:
@@ -38,10 +40,12 @@ class InvestigatorAgenticRunner:
         *,
         max_planner_steps: int = MAX_PLANNER_STEPS,
         max_refinement_rounds: int = MAX_REFINEMENT_ROUNDS,
+        max_guardrail_remediation_rounds: int = MAX_GUARDRAIL_REMEDIATION_ROUNDS,
     ) -> None:
         self.node_registry = node_registry or make_agent_nodes()
         self.max_planner_steps = max_planner_steps
         self.max_refinement_rounds = max_refinement_rounds
+        self.max_guardrail_remediation_rounds = max_guardrail_remediation_rounds
         self.state: AMLAgentState = AMLAgentState()
 
     def run(self, state: AMLAgentState) -> Iterator[dict[str, Any]]:
@@ -86,6 +90,12 @@ class InvestigatorAgenticRunner:
                 refinement_rounds=self.state.get("refinement_rounds", 0),
             )
 
+        yield from self._run_final_governance()
+        if self._should_remediate_guardrail():
+            yield from self._run_guardrail_remediation()
+            yield from self._run_final_governance()
+
+    def _run_final_governance(self) -> Iterator[dict[str, Any]]:
         yield self._event("judge_started", agent=JUDGE_PANEL_AGENT)
         self.state = self.node_registry[JUDGE_PANEL_AGENT](self.state)
         yield self._event("agent_completed", agent=JUDGE_PANEL_AGENT, output=self._agent_output(JUDGE_PANEL_AGENT))
@@ -93,6 +103,63 @@ class InvestigatorAgenticRunner:
         yield self._event("guardrail_started", agent=GUARDRAIL_AGENT)
         self.state = self.node_registry[GUARDRAIL_AGENT](self.state)
         yield self._event("agent_completed", agent=GUARDRAIL_AGENT, output=self._agent_output(GUARDRAIL_AGENT))
+
+    def _should_remediate_guardrail(self) -> bool:
+        if self.state.get("guardrail_remediation_rounds", 0) >= self.max_guardrail_remediation_rounds:
+            return False
+        flags = list(self.state.get("guardrail_flags", []))
+        if not flags:
+            return False
+        if any(flag in NON_REMEDIABLE_GUARDRAIL_FLAGS for flag in flags):
+            return False
+        return True
+
+    def _run_guardrail_remediation(self) -> Iterator[dict[str, Any]]:
+        next_round = self.state.get("guardrail_remediation_rounds", 0) + 1
+        flags = list(self.state.get("guardrail_flags", []))
+        remediation = {
+            "round": next_round,
+            "flags": flags,
+            "judge_failure_reason": self.state.get("judge_panel_result", {}).get("failure_reason"),
+            "instruction": self._build_guardrail_remediation_instruction(flags),
+            "status": "started",
+        }
+        self.state["guardrail_remediation_instruction"] = remediation["instruction"]
+        self.state["guardrail_remediations"] = [*self.state.get("guardrail_remediations", []), remediation]
+
+        yield self._event(
+            "guardrail_remediation_started",
+            flags=flags,
+            instruction=remediation["instruction"],
+            guardrail_remediation_rounds=next_round,
+        )
+
+        yield self._event("critic_started", agent=REPORT_CRITIC_AGENT, instruction=remediation["instruction"])
+        self.state = self.node_registry[REPORT_CRITIC_AGENT](self.state)
+        critic_review = self.state.get("critic_reviews", [])[-1]
+        yield self._event("critic_completed", agent=REPORT_CRITIC_AGENT, review=critic_review)
+
+        self.state["guardrail_remediation_rounds"] = next_round
+        self.state = self.node_registry[EVIDENCE_ASSEMBLY_AGENT](self.state)
+        completed = {**remediation, "status": "completed"}
+        self.state["guardrail_remediations"] = [*self.state.get("guardrail_remediations", [])[:-1], completed]
+        yield self._event(
+            "guardrail_remediation_completed",
+            agent=EVIDENCE_ASSEMBLY_AGENT,
+            output=self._agent_output(EVIDENCE_ASSEMBLY_AGENT),
+            guardrail_remediation_rounds=next_round,
+        )
+
+    def _build_guardrail_remediation_instruction(self, flags: list[str]) -> str:
+        reason = self.state.get("judge_panel_result", {}).get("failure_reason")
+        issues = ", ".join(flags) if flags else reason or "final governance failure"
+        return (
+            "Revise the draft report using only evidence already gathered. Address these governance issues: "
+            f"{issues}. Remove prohibited or conclusive AML language, avoid treating model scores as proof, "
+            "redact PII, remove fabricated citations or unsupported typology claims, avoid premature case "
+            "disposition, justify any disposition recommendation with existing evidence, and preserve human-review "
+            "and model-prioritization-only language before the final Judge Panel and Guardrail review."
+        )
 
     def _ensure_agentic_route(self) -> None:
         if self.state.get("route"):

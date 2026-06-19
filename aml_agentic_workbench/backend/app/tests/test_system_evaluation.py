@@ -105,8 +105,8 @@ async def test_evaluation_runner_handles_guardrail_blocks_and_missing_citations(
     )
     missing_citation = GoldenCase(
         case_id="missing-citation",
-        role=SupportedRole.COMPLIANCE_STRATEGY,
-        task_type="compliance_typology_review",
+        role=SupportedRole.INVESTIGATOR,
+        task_type="typology_mapping",
         query="Map typology indicators.",
         expected_agents=["typology_mapping_agent", "evidence_assembly_agent", "judge_panel_agent", "guardrail_agent"],
         expected_guardrail_outcome="allowed",

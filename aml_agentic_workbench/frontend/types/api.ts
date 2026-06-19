@@ -1,4 +1,4 @@
-export type SupportedRole = "data_scientist" | "investigator" | "model_validator" | "compliance_strategy";
+export type SupportedRole = "data_scientist" | "investigator";
 
 export type TaskType =
   | "generate_model_driven_candidates"
@@ -8,9 +8,7 @@ export type TaskType =
   | "typology_mapping"
   | "feature_quality_review"
   | "full_intelligence_report"
-  | "investigator_summary"
-  | "model_validation_review"
-  | "compliance_typology_review";
+  | "investigator_summary";
 
 export type AgentName =
   | "candidate_ranking_agent"
@@ -107,6 +105,11 @@ export interface AnalysisResponse {
     critic_reviews?: CriticReview[];
     stop_reason?: string | null;
     refinement_rounds?: number;
+    guardrail_remediation_rounds?: number;
+    guardrail_remediations?: GuardrailRemediation[];
+    governance_status?: "passed" | "judge_warning" | "guardrail_failed" | string;
+    judge_status?: "passed" | "warning" | string;
+    judge_failure_reasons?: string[];
     agent_outputs?: Record<string, AgentOutput>;
     audit_trace?: AuditTraceItem[];
     judge_panel?: unknown;
@@ -136,6 +139,14 @@ export interface CriticReview {
   confidence: number;
 }
 
+export interface GuardrailRemediation {
+  round: number;
+  flags: string[];
+  judge_failure_reason?: string | null;
+  instruction: string;
+  status: string;
+}
+
 export interface AnalysisStreamEvent {
   event: string;
   route?: AgentName[];
@@ -145,6 +156,8 @@ export interface AnalysisStreamEvent {
   output?: AgentOutput;
   instruction?: string | null;
   refinement_rounds?: number;
+  guardrail_remediation_rounds?: number;
+  flags?: string[];
   response?: AnalysisResponse;
   message?: string;
 }
@@ -300,6 +313,11 @@ export interface ReportDetailResponse {
   critic_reviews?: CriticReview[];
   stop_reason?: string | null;
   refinement_rounds?: number;
+  guardrail_remediation_rounds?: number;
+  guardrail_remediations?: GuardrailRemediation[];
+  governance_status?: string | null;
+  judge_status?: string | null;
+  judge_failure_reasons?: string[];
   executed_agents: AgentName[];
   judge_scores?: Record<string, number> | null;
   route_explanation?: string | null;

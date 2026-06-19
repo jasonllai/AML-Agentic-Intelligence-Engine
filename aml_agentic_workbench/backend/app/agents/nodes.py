@@ -17,6 +17,7 @@ from app.agents.router import (
 )
 from app.agents.state import AMLAgentState
 from app.evaluation.judge_panel import JudgePanel
+from app.guardrails.output_guardrails import OutputGuardrails
 from app.llm.client import LLMClient, get_llm_client
 from app.llm.prompts import render_prompt
 from app.llm.schemas import (
@@ -340,6 +341,11 @@ def report_critic_agent(llm_client: LLMClient) -> AgentNode:
             "agent_outputs": state.get("agent_outputs", {}),
             "planner_decisions": state.get("planner_decisions", []),
             "refinement_rounds": state.get("refinement_rounds", 0),
+            "guardrail_flags": state.get("guardrail_flags", []),
+            "guardrail_failure_reasons": state.get("guardrail_failure_reasons", []),
+            "guardrail_remediation_instruction": state.get("guardrail_remediation_instruction"),
+            "guardrail_remediations": state.get("guardrail_remediations", []),
+            "judge_outputs": state.get("judge_outputs", {}),
         }
         prompt = render_prompt(REPORT_CRITIC_AGENT, state["role"], state["query"], inputs)
         output = llm_client.generate_structured(prompt, CriticReviewOutput)
@@ -378,6 +384,7 @@ def judge_panel_agent(llm_client: LLMClient) -> AgentNode:
             **{criterion.value: decision.score for criterion, decision in output.decisions.items()},
         }
         state["judge_outputs"] = judge_outputs
+        state["judge_panel_result"] = output.model_dump(mode="json")
         return _record_agent_output(
             state,
             JUDGE_PANEL_AGENT,
@@ -406,12 +413,19 @@ def guardrail_agent(llm_client: LLMClient) -> AgentNode:
         }
         prompt = render_prompt(GUARDRAIL_AGENT, state["role"], state["query"], inputs)
         output = llm_client.generate_structured(prompt, GuardrailReviewOutput)
-        flags = list(output.flags)
+        citations = _collect_agent_citations(state)
+        deterministic_output = OutputGuardrails().evaluate(str(state.get("final_report") or ""), citations=citations)
+        flags = _dedupe([*deterministic_output.flags, *output.flags])
         if not state.get("query", "").strip():
             flags.append("empty_query")
         if not state.get("agent_outputs"):
             flags.append("no_agent_outputs")
+        flags = _dedupe(flags)
+        failure_reasons = _dedupe([*deterministic_output.failure_reasons, *flags])
         state["guardrail_flags"] = flags
+        state["guardrail_failure_reasons"] = failure_reasons
+        state["guardrail_allowed"] = deterministic_output.allowed and not flags
+        state["guardrail_safe_output"] = deterministic_output.safe_output
         if not state.get("final_report"):
             state["final_report"] = _compose_fallback_final_report(state, flags)
         return _record_agent_output(
@@ -419,10 +433,13 @@ def guardrail_agent(llm_client: LLMClient) -> AgentNode:
             GUARDRAIL_AGENT,
             summary=output.safe_summary,
             findings=["No blocking guardrail flags found."] if not flags else flags,
-            evidence=[{"flags": flags, "route": state.get("route", [])}],
+            evidence=[{"flags": flags, "failure_reasons": failure_reasons, "route": state.get("route", [])}],
             limitations=output.required_disclaimers,
             confidence=0.86 if not flags else 0.55,
-            structured_output=output.model_dump(mode="json"),
+            structured_output={
+                **output.model_dump(mode="json"),
+                "deterministic_output_guardrails": deterministic_output.model_dump(mode="json"),
+            },
         )
 
     return node
@@ -458,6 +475,23 @@ def _record_agent_output(
         {"event": "agent_completed", "agent": agent_name, "confidence": output["confidence"]},
     ]
     return state
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            ordered.append(value)
+    return ordered
+
+
+def _collect_agent_citations(state: AMLAgentState) -> list[dict[str, object]]:
+    citations: list[dict[str, object]] = []
+    for output in state.get("agent_outputs", {}).values():
+        citations.extend(output.get("citations", []))
+    return citations
 
 
 def _compose_fallback_final_report(state: AMLAgentState, flags: list[str]) -> str:

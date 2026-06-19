@@ -79,8 +79,8 @@ def test_model_agent_includes_uncertainty_language() -> None:
     """Model explanation should clearly avoid proof language."""
     nodes = make_agent_nodes(llm_client=MockLLMClient())
     state = initial_state(
-        role=SupportedRole.MODEL_VALIDATOR,
-        task_type="model_validation_review",
+        role=SupportedRole.DATA_SCIENTIST,
+        task_type="model_risk_explanation",
         query="Explain model score uncertainty.",
         customer_id="CUST007",
     )
@@ -97,8 +97,8 @@ def test_model_agent_uses_model_service_not_precomputed_outputs() -> None:
     """Model explanation should rely on the scoring service, not assumed-done CSV outputs."""
     nodes = make_agent_nodes(llm_client=MockLLMClient(), model_service=FakeModelService())
     state = initial_state(
-        role=SupportedRole.MODEL_VALIDATOR,
-        task_type="model_validation_review",
+        role=SupportedRole.DATA_SCIENTIST,
+        task_type="model_risk_explanation",
         query="Explain model score uncertainty.",
         customer_id="SYNID0100000167",
     )

@@ -104,15 +104,16 @@ def test_knowledge_search_tool_is_role_scoped_to_all_roles() -> None:
     registry = ToolRegistry()
     registry.register(SearchAmlKnowledgeBaseTool(retriever=FakeKnowledgeRetriever()))
 
-    output = registry.invoke(
-        "search_aml_knowledge_base",
-        SupportedRole.COMPLIANCE_STRATEGY,
-        {"query": "cross-border concentration wires", "limit": 2},
-    )
+    for role in SupportedRole:
+        output = registry.invoke(
+            "search_aml_knowledge_base",
+            role,
+            {"query": "cross-border concentration wires", "limit": 2},
+        )
 
-    assert output.status == "success"
-    assert output.data is not None
-    documents = output.data["documents"]
-    assert isinstance(documents, list)
-    assert documents
-    assert all(document.get("url") for document in documents)
+        assert output.status == "success"
+        assert output.data is not None
+        documents = output.data["documents"]
+        assert isinstance(documents, list)
+        assert documents
+        assert all(document.get("url") for document in documents)

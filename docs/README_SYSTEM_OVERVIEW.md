@@ -2,184 +2,244 @@
 
 ## Executive Summary
 
-The AML Agentic Intelligence Workbench is a governed, role-aware multi-agent application for anti-money laundering analytics. It is designed to help bank teams convert structured AML data, model outputs, retrieved policy or typology context, and agent reasoning into controlled AML intelligence packages.
+The AML Agentic Intelligence Workbench is a governed, role-aware application for AML analytics. The current implementation focuses on a realistic two-step operating model:
 
-The current implementation is a production-oriented foundation rather than a complete enterprise deployment. It includes a FastAPI backend, a Next.js frontend, dynamic LangGraph-compatible agent routing, deterministic local sample data, real-data feature/model artifacts, mock-or-real LLM client abstraction, internal tool abstractions, guardrails, LLM-as-judge evaluation, pgvector-backed RAG retrieval, ORM persistence models, Docker Compose infrastructure for PostgreSQL and Redis, and tests. The local default path uses a deterministic mock LLM unless an OpenAI-compatible API key is configured.
+1. Data Science generates model-prioritized investigation candidates from the modeled customer population.
+2. Investigation reviews one model-prioritized customer, gathers evidence, maps typology indicators carefully, recommends a disposition, and returns structured feedback for model evaluation.
+
+The implementation includes a FastAPI backend, a Next.js frontend, dynamic route validation, a bounded Investigator planner/critic loop, deterministic mock-or-OpenAI-compatible LLM support, local real-data access, local model artifacts, four unsupervised anomaly scoring families, SHAP and reconstruction-error explanations, pgvector-backed official-source RAG retrieval, guardrails, LLM-as-judge evaluation, an evaluation dashboard, and in-memory run history.
 
 ## Business Purpose
 
-AML teams often operate across disconnected artifacts: transaction monitoring alerts, engineered feature tables, model scores, typology playbooks, analyst notes, validation evidence, and governance requirements. This workbench provides a controlled way to assemble those inputs into explainable, role-specific outputs.
+AML teams operate across disconnected artifacts: transaction-channel records, KYC context, engineered feature tables, model scores, typology guidance, analyst review, validation evidence, and governance requirements. This workbench provides a controlled way to assemble those inputs into explainable, role-specific AML intelligence packages.
 
-The business purpose is to support:
+The current system supports:
 
-- Better explanation of customer behaviour and transaction patterns.
-- Safer interpretation of AML model outputs without treating model scores as proof.
-- Mapping of observed activity to AML typology indicators with careful, non-conclusive language.
-- Identification of feature quality issues, leakage risks, and candidate feature improvements.
-- Role-specific report packaging for investigators, data scientists, model validators, and compliance strategy users.
-- Repeatable quality review through judge scores, deterministic guardrails, audit traces, and route explanations.
+- Population-level model prioritization for Data Science.
+- Investigator-ready Detection Candidate Packages.
+- Safe interpretation of model scores as prioritization evidence, not proof.
+- Case-level transaction and KYC evidence review.
+- Careful typology mapping with official-source citations when retrieval is available.
+- Structured disposition and feedback capture.
+- Repeatable quality review through judge scores, deterministic guardrails, route explanations, and audit traces.
 
-## Target Users
+## Primary Users
 
 ### Data Scientist
 
-The data scientist user is interested in model behaviour, feature quality, signal stability, leakage risk, and possible new features. The workbench supports this user through the model explanation agent, feature critic agent, transaction behaviour context, judge scores, and structured feature recommendations with PySpark-style pseudocode.
+The Data Scientist user owns model-driven prioritization and candidate handoff.
 
-Typical questions:
+The workflow supports:
 
-- Which features are driving the current AML risk signal?
-- Does the model score have enough supporting behavioural context?
-- Which features may be unstable or leakage-prone?
-- What additional features could improve monitoring coverage?
+- Scoring the modeled population across four model families.
+- Comparing unsupervised model result sets.
+- Reviewing thresholds and alert-volume rationale.
+- Inspecting top feature drivers.
+- Using SHAP explanations for Isolation Forest candidates.
+- Using reconstruction-error contribution for Autoencoder, VAE, and CVAE candidates.
+- Sending a governed candidate package to the Investigator workflow.
+
+Primary task:
+
+```text
+generate_model_driven_candidates
+```
 
 ### Investigator
 
-The investigator user needs a concise, evidence-grounded view of customer activity. The workbench supports this user through transaction behaviour analysis, typology mapping, evidence assembly, careful wording, and visible guardrail status.
+The Investigator user owns case-level evidence review and feedback.
 
-Typical questions:
+The workflow supports:
 
-- What recent customer behaviour appears unusual relative to baseline?
-- Which counterparties, geographies, velocity changes, or transaction patterns matter?
-- Which AML typology indicators does the activity resemble?
-- What evidence should be reviewed before taking action?
+- Opening a model-prioritized customer from a Data Scientist handoff link.
+- Reviewing transaction behaviour, feature context, and typology indicators.
+- Using a bounded planner to gather required evidence.
+- Producing a governed report after critic, judge, and guardrail review.
+- Returning disposition and feedback fields for model evaluation.
 
-### Model Validator
+Primary task:
 
-The model validator user needs auditability, uncertainty handling, validation caveats, and evidence that the system does not overstate model output. The workbench supports this user through model explanation, feature critique, judge scores, and report sections that emphasize model limitations.
+```text
+investigate_model_prioritized_candidate
+```
 
-Typical questions:
+## Governance and Evaluation Users
 
-- Does the explanation clearly state that the model score is not proof?
-- Are feature directionality, uncertainty, and data quality concerns surfaced?
-- Are validation tests and stability checks identified?
-- Is the output sufficiently traceable for governance review?
+Model validation and compliance strategy concerns are still represented in the system, but they are not primary frontend roles.
 
-### Compliance or AML Strategy User
+They appear through:
 
-The compliance strategy user needs typology coverage, policy alignment, careful language, and governance visibility. The workbench supports this user through typology mapping, evidence assembly, citation requirements, policy guardrails, and approval-gate abstractions for sensitive actions.
+- Data science quality judge checks.
+- Compliance and typology judge checks.
+- Output guardrails.
+- Official-source RAG citation expectations.
+- Golden-dataset evaluation metrics.
+- Approval-gate abstractions for future sensitive actions.
 
-Typical questions:
-
-- Which typology indicators are covered by the available evidence?
-- Does the output avoid legal conclusions and operationally unsafe instructions?
-- Are citations present for regulatory or typology claims?
-- Where are the policy and control gaps?
+`model_validator` and `compliance_strategy` are intentionally rejected by the current `SupportedRole` schema.
 
 ## Problems the System Solves
 
-The current implementation addresses several common AML analytics problems:
-
-- Fragmented evidence: The system assembles transactions, feature summaries, model outputs, retrieved knowledge, agent outputs, judge decisions, and guardrail status into one response package.
-- Overbroad AI execution: The router selects only the agents needed for a role and task, with support for partial-agent execution and mandatory final guardrail review.
-- Unsafe model interpretation: Structured schemas and judges require uncertainty language and prevent model scores from being framed as proof of suspicious activity.
-- Unsupported typology claims: Typology outputs require citations at the schema level, and output guardrails flag typology language without citations.
-- Inconsistent output quality: The judge panel evaluates faithfulness, citation support, compliance, typology wording, data science quality, and usefulness.
-- Weak auditability: The system records route explanations, executed agents, agent completion events, judge scores, guardrail outcomes, and in-memory run history.
-- Tool sprawl risk: Internal tools are registered through a typed, role-scoped, allowlisted registry rather than arbitrary code or shell execution.
+- Fragmented handoff: Data Scientist output is packaged as Detection Candidate Packages with model evidence, feature drivers, limitations, and disclaimers.
+- Overbroad AI execution: The router limits execution by role and task, and the Investigator runner bounds planner actions.
+- Unsafe model interpretation: Candidate packages and reports must preserve the boundary that model output is prioritization only.
+- Unsupported typology claims: Typology mapping uses retrieved AML knowledge and citations; output guardrails flag unsupported claims.
+- Weak auditability: Responses include run IDs, executed agents, route explanations, planner decisions, critic reviews, judge scores, guardrail outcomes, and audit traces.
+- Inconsistent quality: Judge and guardrail layers distinguish judge warnings from actual guardrail failures.
+- Local data opacity: The customer-data browser exposes the real-data sources and rows used for case review.
 
 ## What the System Does Not Do
 
-The codebase deliberately does not implement several enterprise capabilities yet:
+The current codebase deliberately does not implement several enterprise capabilities:
 
 - It does not make final AML decisions, confirm criminal activity, or direct users to file regulatory reports.
 - It does not replace investigator judgment, model validation governance, or compliance approval workflows.
-- It does not connect to live bank transaction systems, customer master data, case management platforms, or sanctions systems.
-- It does not currently persist API analysis results to PostgreSQL in the request path. ORM models and repositories exist, but local report history is stored in a thread-safe in-memory store.
-- It does not currently use Redis in the request path. A Redis client factory and Docker Compose Redis service exist.
-- It requires PostgreSQL/pgvector for runtime RAG retrieval after ingestion. The older file-backed RAG artifacts remain only as offline/unit-test utilities.
-- It does not currently enforce real SSO, RBAC, row-level customer authorization, or production secrets management.
-- It does not currently implement a full human approval workflow UI. Approval gate logic exists as a policy abstraction.
-- It does not guarantee that a configured external LLM will always return schema-valid JSON. The OpenAI-compatible client validates responses against Pydantic schemas and will fail if invalid JSON is returned.
+- It does not connect to live bank systems, case management platforms, sanctions systems, or regulatory reporting tools.
+- It does not persist analysis responses to PostgreSQL in the request path. Local history uses an in-memory `RunStore`.
+- It does not use Redis in the active request path.
+- It does not enforce production SSO, RBAC, row-level customer authorization, secrets management, or migrations.
+- It does not implement a full human approval workflow UI or export endpoint.
+- It does not guarantee an external LLM will return schema-valid JSON; the OpenAI-compatible client validates and fails on invalid JSON.
 
 ## Why This Is Not Just a Chatbot
 
-The workbench is not a free-form conversational assistant wrapped around an AML prompt. It is structured around routed, role-aware workflows and controlled evidence handling.
+The workbench is structured around routed, role-aware workflows and controlled evidence handling.
 
 Key differences:
 
-- Role-aware routing: Requests are routed by `role`, `task_type`, and optional `selected_agents`.
-- Specialized agents: Each agent has a narrow responsibility, such as transaction behaviour, model explanation, typology mapping, feature critique, evidence assembly, judge review, or guardrail review.
-- Typed outputs: LLM-backed agents produce Pydantic-validated structured outputs, not only free text.
-- Evidence assembly: Final reports are composed from the outputs of agents that actually executed.
-- Guardrails: Input, output, tool, PII, and approval policy layers exist in the backend.
-- Evaluation: A judge panel scores final output quality and can fail a run when compliance issues are severe or the aggregate score is below threshold.
-- Tool governance: Internal tools are allowlisted, schema-validated, role-scoped, audited, timeout-controlled, and denied when policy fails.
-- Auditability: Responses include run IDs, executed agents, route explanations, judge scores, guardrail status, and audit traces.
+- Role contracts: Data Scientist and Investigator workflows have distinct responsibilities.
+- Specialized agents: Candidate ranking, planner, transaction behaviour, typology mapping, case investigation, evidence assembly, report critic, judge panel, and guardrail review each have narrow responsibilities.
+- Typed outputs: LLM-backed agents produce Pydantic-validated structured outputs.
+- Deterministic evidence: Model rank, score, threshold, and feature drivers come from model services, not LLM judgment.
+- Guarded generation: Candidate explanations and final reports are evaluated by deterministic guardrails.
+- Evaluation: System evaluation checks routing, guardrails, citations, RAG relevance, faithfulness, answer relevance, compliance safety, model explanation quality, and latency.
+- Auditability: Responses include route and execution metadata rather than only free text.
 
-## How the System Combines Analytics, ML Outputs, RAG, Agents, Guardrails, and Evaluation
+## System Layers
 
-The current system combines several layers:
+### Structured Data
 
-1. Structured AML analytics:
-   The local `DataService` reads synthetic CSV files for customers, transactions, customer features, and model outputs. It computes transaction lists, feature summaries, model output summaries, and counterparty network summaries.
+`DataService` reads local real-data files:
 
-2. ML outputs:
-   The model explanation agent now uses `ModelService.score_customer` when trained artifacts are available. The v1 model is an offline-trained Isolation-Forest-style anomaly scorer over real-data customer features. If artifacts are missing or the customer is absent, the system returns an explicit no-artifact envelope rather than assumed scores.
+- Transaction channels: ABM, card, cheque, EFT, EMT, Western Union, and wire.
+- KYC files: individual, small business, occupation lookup, and industry lookup.
+- Model feature matrix: `artifacts/models/customer_features.csv`.
 
-3. Retrieval augmented generation:
-   The typology mapping agent uses a `KnowledgeRetriever` abstraction. The active runtime implementation uses PostgreSQL/pgvector populated by `python -m app.rag.ingest_pgvector --manifest config/rag_sources.yaml`. Chunks preserve section headings, official source metadata, retrieval priority, and citation URLs. If the pgvector store is missing, retrieval fails loudly instead of silently falling back to sample files.
+The `/customer-data` frontend page and `/api/v1/customer-data` API expose customer-scoped source records.
 
-4. Multi-agent orchestration:
-   The `RoleAwareRouter` resolves the route. The `DynamicGraphBuilder` builds a LangGraph `StateGraph` for only the selected route and falls back to a sequential runner if LangGraph is unavailable.
+### Model Scoring
 
-5. Guardrails:
-   Input guardrails block prompt extraction, unsafe laundering instructions, and placeholder unauthorized access conditions. Output guardrails detect prohibited phrases, unsupported typology claims, fabricated citation risk, model-score-as-proof language, and PII. Tool guardrails block unsupported or unauthorized tool use. Approval gates identify sensitive actions that require human approval.
+`ModelService` scores customers through `IsolationForestModelService`.
 
-6. Evaluation:
-   The judge panel runs six judges: faithfulness, citation, compliance, typology, data science, and usefulness. The system evaluation layer also generates golden cases and scores route correctness, guardrail correctness, citation presence, RAG relevance, faithfulness, answer relevance, compliance safety, model explanation quality, and latency.
+Supported model result families:
 
-7. Report packaging:
-   Evidence assembly creates a role-aware Markdown report with sections driven by the agents that actually executed. The frontend renders the final report, judge cards, executed agents, structured outputs, evidence table, and audit metadata.
+- Isolation Forest.
+- Autoencoder.
+- Variational Autoencoder.
+- Conditional Variational Autoencoder.
 
-8. Storage and audit:
-   The current API response path writes run details to an in-memory `RunStore`. ORM models for agent runs, steps, reports, audit logs, and judge results exist for later PostgreSQL-backed persistence. The tool registry emits audit events through the logging facade.
+Isolation Forest artifacts are trained offline. Deep-model prototype artifacts are trained deterministically on first use if missing. All scores are normalized to `[0, 1]` and treated as investigation prioritization only.
+
+### Retrieval Augmented Generation
+
+Runtime typology retrieval uses PostgreSQL/pgvector populated by:
+
+```bash
+python -m app.rag.ingest_pgvector --manifest config/rag_sources.yaml
+```
+
+If pgvector is unavailable, generic typology routes fail loudly. The primary Investigator handoff route has a narrow local keyword fallback with an explicit limitation note for local workflow continuity.
+
+### Agent Orchestration
+
+The router resolves role/task routes and validates selected agents. Generic routes use the LangGraph-compatible dynamic graph builder.
+
+The primary Investigator task uses `InvestigatorAgenticRunner`, which:
+
+- Streams planner and execution events.
+- Enforces required evidence actions.
+- Runs report critic review.
+- Allows one refinement pass.
+- Runs judge and guardrail review.
+- Allows one guardrail remediation pass for fixable flags.
+
+### Guardrails
+
+Guardrails cover:
+
+- Prompt injection and unsafe request patterns.
+- Prohibited AML certainty language.
+- STR instruction language.
+- Unsupported typology claims.
+- Citation mismatches.
+- Model-score-as-proof language.
+- PII redaction checks.
+- Unsafe candidate explanation wording.
+
+### Evaluation
+
+The judge panel evaluates faithfulness, citations, compliance, typology wording, data science quality, and usefulness.
+
+The system evaluation layer generates golden cases and records metrics in memory. The frontend `/evaluations` page shows runs, metric cards, failure rows, case detail, citations, and judge rationale.
+
+### Storage and Audit
+
+The active API response path stores run details in an in-memory `RunStore`. ORM models for agent runs, steps, reports, audit logs, and judge results exist for future durable persistence.
 
 ## Current User Journey
 
-1. A user opens the Next.js workbench and selects a role, task type, customer ID, query, and optional manual agents.
-2. The frontend shows a route preview using its local route catalog.
-3. The frontend posts the analysis request to `POST /api/v1/analysis`.
-4. The backend input policy evaluates the query.
-5. The backend router resolves the authorized agent route.
-6. The dynamic graph executes the selected agents in order.
-7. Agent nodes retrieve structured sample data, model outputs, or knowledge documents as needed.
-8. The evidence assembly agent composes a report from available agent outputs.
-9. The judge panel evaluates the report.
-10. Output guardrails review and possibly rewrite or block the response.
-11. The response returns run ID, executed agents, final report, judge scores, guardrail status, route explanation, agent outputs, and audit trace.
-12. The frontend renders the governed report and stores history through backend report endpoints backed by the in-memory run store.
+### Data Scientist
+
+1. User opens `/roles/data_scientist`.
+2. User runs `Generate model-driven investigation candidates`.
+3. Backend scores the population across four model families.
+4. Candidate packages are created with drivers, explanations, limitations, and disclaimers.
+5. Frontend renders a result-list selector for each model family and the intersection.
+6. User opens an Investigator handoff link for a candidate.
+
+### Investigator
+
+1. User opens `/roles/investigator`, optionally prefilled from a handoff link.
+2. User runs `Investigate model-prioritized candidate`.
+3. Frontend streams planner decisions, agent completions, critic review, remediation, and final governance events.
+4. Backend gathers transaction behaviour, typology context, and candidate case review.
+5. Evidence assembly creates a report.
+6. Report critic may request one refinement.
+7. Judge panel and guardrail review evaluate the final package.
+8. Frontend renders the governed AML intelligence package, candidate context, investigator feedback, citations, decision/refinement details, evidence, and audit trail.
 
 ## Current Implementation Status
 
 Implemented and active:
 
-- FastAPI routes for health, roles, analysis, and reports.
-- Next.js pages for home, roles, analysis, history, and report detail.
-- Role-aware router and partial-agent execution.
-- LangGraph-compatible dynamic graph execution.
-- Deterministic mock LLM client and OpenAI-compatible client abstraction.
-- Local synthetic AML data access plus real-data fallback access for trained feature artifacts and transaction channel CSVs.
-- Offline real-data feature building and Isolation-Forest-style model scoring.
-- Official-source RAG manifest, pgvector ingestion command, section chunking, local deterministic embeddings, pgvector retrieval, and citation-ready chunks.
-- Generated golden dataset builder, evaluation runner, evaluation API endpoints, and frontend evaluation dashboard.
-- Structured schemas for agent outputs and judge outputs.
-- Input/output/tool/PII guardrails.
-- LLM-as-judge panel with weighted aggregation.
-- In-memory run history.
-- Tests for routing, graph execution, data service, tools, schemas, guardrails, evaluation, health, pgvector RAG, evaluation API, and LLM-backed agent schemas.
+- FastAPI routes for health, roles, analysis, streaming analysis, reports, customer data, and evaluations.
+- Next.js pages for home, role catalog, role workspaces, history, report detail, customer-data browsing, and evaluations.
+- Data Scientist four-model workbench and candidate packages.
+- Investigator bounded planner/critic/governance runner.
+- Deterministic mock LLM and OpenAI-compatible client abstraction.
+- Local real-data access and model feature artifacts.
+- Offline Isolation Forest training and local prototype deep-model scoring.
+- SHAP Isolation Forest explanations and reconstruction-error deep-model explanations.
+- Pgvector RAG ingestion and runtime retrieval.
+- Narrow local keyword fallback for the primary Investigator route when pgvector is unavailable.
+- Structured schemas for agent outputs, candidate packages, and judge outputs.
+- Input/output/tool/PII guardrails and candidate explanation guardrails.
+- Golden-dataset evaluation API and dashboard.
+- In-memory run and evaluation history.
 
 Implemented as foundation or placeholder:
 
 - PostgreSQL ORM models and repositories.
 - Redis client factory.
-- Telemetry facade for future LangSmith, Phoenix, or OpenTelemetry integration.
+- Telemetry facade.
 - Approval gate policy abstraction.
-- SSO placeholder in the frontend shell.
+- Frontend SSO/export placeholders.
 
 Not implemented:
 
 - Production authentication and authorization.
+- Durable report persistence through PostgreSQL.
 - Live bank data integration.
-- Durable persistence of analysis responses through the active API path.
 - Full human approval workflow UI.
-- External case management or regulatory reporting integration.
+- External case-management or regulatory-reporting integration.
+- Production-grade embedding model or governed model registry.

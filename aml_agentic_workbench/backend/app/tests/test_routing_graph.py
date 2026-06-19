@@ -72,10 +72,10 @@ def test_invalid_agent_selection_is_blocked() -> None:
     """Unknown or unauthorized agent selections should fail closed."""
     with pytest.raises(RouteValidationError):
         RoleAwareRouter().route(
-            role=SupportedRole.COMPLIANCE_STRATEGY,
-            task_type="compliance_typology_review",
-            query="Map typology.",
-            selected_agents=["transaction_behaviour_agent"],
+            role=SupportedRole.DATA_SCIENTIST,
+            task_type="model_risk_explanation",
+            query="Run a data science route with an unauthorized typology agent.",
+            selected_agents=["typology_mapping_agent"],
         )
 
 
@@ -128,10 +128,10 @@ def test_route_explanation_is_available() -> None:
     """Router should expose an explanation for audit and API responses."""
     router = RoleAwareRouter()
     route = router.route(
-        role=SupportedRole.MODEL_VALIDATOR,
-        task_type="model_validation_review",
-        query="Validate model risk explanation.",
+        role=SupportedRole.INVESTIGATOR,
+        task_type="typology_mapping",
+        query="Map this activity to typology indicators.",
     )
 
     assert router.explain_route(route) == route.explanation
-    assert "model_validation_review" in route.explanation
+    assert "typology_mapping" in route.explanation

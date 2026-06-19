@@ -1,5 +1,8 @@
 """AML redesign contract tests for role boundaries and handoff objects."""
 
+import pytest
+from pydantic import ValidationError
+
 from app.agents.router import (
     CANDIDATE_RANKING_AGENT,
     CASE_INVESTIGATION_AGENT,
@@ -33,6 +36,16 @@ def test_new_primary_tasks_are_supported_by_request_schema() -> None:
 
     assert data_scientist_request.task_type == "generate_model_driven_candidates"
     assert investigator_request.task_type == "investigate_model_prioritized_candidate"
+
+
+def test_deprecated_role_surfaces_are_rejected_by_request_schema() -> None:
+    """Deprecated redesign roles should not remain valid analysis entry points."""
+    for role, task_type in [
+        ("model_validator", "model_validation_review"),
+        ("compliance_strategy", "compliance_typology_review"),
+    ]:
+        with pytest.raises(ValidationError):
+            AnalysisRequest(role=role, task_type=task_type, query="Run deprecated workflow.")
 
 
 def test_data_scientist_candidate_route_excludes_case_conclusion_agents() -> None:
